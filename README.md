@@ -146,9 +146,10 @@ Any agent that connects to MCP servers can use agentmemory's 43 tools, 6 resourc
 
 | Agent | How to connect |
 |---|---|
+| **Cursor** | Add MCP server in settings or `~/.cursor/mcp.json` |
 | **Claude Desktop** | Add to `claude_desktop_config.json` MCP servers |
-| **Cursor** | Add MCP server in settings |
-| **Windsurf** | MCP server configuration |
+| **Gemini CLI** | `gemini mcp add agentmemory -- npx agentmemory-mcp` |
+| **OpenCode** | Add to `.opencode/config.json` MCP servers |
 | **Cline / Continue** | MCP server configuration |
 | **Any MCP client** | Point to `http://localhost:3111/agentmemory/mcp/*` |
 
@@ -171,7 +172,7 @@ GET  /agentmemory/profile       # Get project intelligence
 |---|---|
 | Claude Code user | Plugin install (hooks + MCP + skills) |
 | Building a custom agent with Claude SDK | AgentSDKProvider (zero config) |
-| Using Cursor, Windsurf, or any MCP client | MCP server (43 tools + 6 resources + 3 prompts) |
+| Using Cursor, Gemini CLI, OpenCode, or any MCP client | MCP server (43 tools + 6 resources + 3 prompts) |
 | Building your own agent framework | REST API (103 endpoints) |
 | Sharing memory across multiple agents | All agents point to the same iii-engine instance |
 
@@ -203,9 +204,9 @@ npm install && npm run build && npm start
 
 All 12 hooks, 4 skills, and MCP server are registered automatically.
 
-**Cursor / Windsurf / Cline / any MCP client:**
+**Cursor / Claude Desktop / Cline / any MCP client:**
 
-Add to your MCP config (e.g. `~/.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`):
+Add to your MCP config (e.g. `~/.cursor/mcp.json`, `claude_desktop_config.json`):
 
 ```json
 {
@@ -218,9 +219,15 @@ Add to your MCP config (e.g. `~/.cursor/mcp.json`, `~/.codeium/windsurf/mcp_conf
 }
 ```
 
-**Claude Desktop:**
+**Gemini CLI:**
 
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+```bash
+gemini mcp add agentmemory -- npx agentmemory-mcp
+```
+
+**OpenCode:**
+
+Add to `.opencode/config.json`:
 
 ```json
 {
@@ -541,7 +548,7 @@ Collects every 30 seconds: heap usage, CPU percentage (delta sampling), event lo
 
 ### Standalone MCP Server
 
-Run agentmemory as a standalone MCP server for any MCP-compatible agent (Cursor, Codex, Gemini CLI, Windsurf):
+Run agentmemory as a standalone MCP server for any MCP-compatible agent (Cursor, Gemini CLI, OpenCode, Claude Desktop, Cline):
 
 ```bash
 npx agentmemory-mcp
