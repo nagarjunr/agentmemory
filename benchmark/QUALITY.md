@@ -1,7 +1,9 @@
-# agentmemory v0.6.0 — Search Quality Evaluation
+# agentmemory v0.6.0 — Search Quality Evaluation (Internal Dataset)
+
+> For results on the academic LongMemEval-S benchmark (ICLR 2025, 500 questions), see [`LONGMEMEVAL.md`](LONGMEMEVAL.md) — **95.2% R@5, 98.6% R@10**.
 
 **Date:** 2026-03-18T07:44:43.397Z
-**Dataset:** 240 observations across 30 sessions (realistic coding project)
+**Dataset:** 240 synthetic observations across 30 sessions (internal coding project)
 **Queries:** 20 labeled queries with ground-truth relevance
 **Metric definitions:** Recall@K (fraction of relevant docs in top K), Precision@K (fraction of top K that are relevant), NDCG@10 (ranking quality), MRR (position of first relevant result)
 

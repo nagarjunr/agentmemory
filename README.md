@@ -26,9 +26,9 @@
 
 ---
 
-Every AI coding agent has the same blind spot. Session ends, memory vanishes. You re-explain architecture. You re-discover bugs. You re-teach preferences. Built-in memory files like CLAUDE.md and .cursorrules are 200-line sticky notes that overflow and go stale. agentmemory replaces that with a searchable, versioned, cross-agent database — 43 MCP tools, triple-stream retrieval (BM25 + vector + knowledge graph), 4-tier memory consolidation, provenance-tracked citations, and cascading staleness so retired facts never pollute your context again. One instance serves Claude Code, Cursor, Codex, Windsurf, and any MCP client simultaneously. 627 tests. Zero external DB dependencies.
+Every AI coding agent has the same blind spot. Session ends, memory vanishes. You re-explain architecture. You re-discover bugs. You re-teach preferences. Built-in memory files like CLAUDE.md and .cursorrules are 200-line sticky notes that overflow and go stale. agentmemory replaces that with a searchable, versioned, cross-agent database — 43 MCP tools, triple-stream retrieval (BM25 + vector + knowledge graph), 4-tier memory consolidation, provenance-tracked citations, and cascading staleness so retired facts never pollute your context again. One instance serves Claude Code, Cursor, Codex, Windsurf, and any MCP client simultaneously. 646 tests. Zero external DB dependencies.
 
-The result is measurable. On 240 real observations across 30 sessions, agentmemory hits 64% Recall@10 and perfect MRR while using 92% fewer tokens than dumping everything into context. When an agent searches "database performance optimization," it finds the N+1 fix you made three weeks ago — something keyword grep literally cannot do. Memories version automatically, supersede each other, propagate staleness to related graph nodes, and sync across agent instances via P2P mesh. Your agents stop repeating mistakes. Your context stays clean. Your sessions start fast.
+The result is measurable. On LongMemEval-S (ICLR 2025, 500 questions), agentmemory achieves **95.2% Recall@5** and **98.6% Recall@10** with hybrid BM25+vector search — within 1.4pp of raw vector baselines while using 92% fewer tokens than dumping everything into context. When an agent searches "database performance optimization," it finds the N+1 fix you made three weeks ago — something keyword grep literally cannot do. Memories version automatically, supersede each other, propagate staleness to related graph nodes, and sync across agent instances via P2P mesh. Your agents stop repeating mistakes. Your context stays clean. Your sessions start fast.
 
 ```bash
 npx @agentmemory/agentmemory   # installs iii-engine if missing, starts everything
@@ -97,14 +97,25 @@ agentmemory is the searchable database behind the sticky notes.
 | Multi-agent coordination | Impossible | Leases, signals, actions, routines |
 | Cross-agent sync | No | P2P mesh (7 scopes: memories, actions, semantic, procedural, relations, graph) |
 | Memory trust | No verification | Citation chain back to source observations with confidence scores |
-| Semantic search | No (keyword grep) | Yes (Recall@10: 64% vs 56% for grep) |
+| Semantic search | No (keyword grep) | Yes (95.2% R@5 on LongMemEval-S) |
 | Memory lifecycle | Manual pruning | Ebbinghaus decay + tiered eviction |
 | Knowledge graph | No | Entity extraction + temporal versioning |
 | Observability | Read files manually | Real-time viewer on :3113 |
 
 ### Benchmarks (measured, not projected)
 
-Evaluated on 240 real-world coding observations across 30 sessions with 20 labeled queries:
+#### LongMemEval-S (ICLR 2025, 500 questions)
+
+Evaluated on [LongMemEval-S](https://arxiv.org/abs/2410.10813), an academic benchmark with 500 questions across ~48 sessions per question (~115K tokens). Same dataset and metric (`recall_any@K`) used by other memory systems.
+
+| System | R@5 | R@10 | NDCG@10 | MRR |
+|---|---|---|---|---|
+| **agentmemory BM25+Vector** | **95.2%** | **98.6%** | **87.9%** | **88.2%** |
+| agentmemory BM25-only | 86.2% | 94.6% | 73.0% | 71.5% |
+
+These are retrieval recall scores (not end-to-end QA accuracy). Embedding model: `all-MiniLM-L6-v2` (local, no API key).
+
+#### Internal benchmark (240 observations, 20 queries)
 
 | System | Recall@10 | NDCG@10 | MRR | Tokens/query |
 |---|---|---|---|---|
@@ -112,9 +123,9 @@ Evaluated on 240 real-world coding observations across 30 sessions with 20 label
 | agentmemory BM25 (stemmed + synonyms) | 55.9% | 82.7% | 95.5% | 1,571 |
 | agentmemory + Xenova embeddings | **64.1%** | **94.9%** | **100.0%** | **1,571** |
 
-With real embeddings, agentmemory finds "N+1 query fix" when you search "database performance optimization" — something keyword matching literally cannot do.
+agentmemory finds "N+1 query fix" when you search "database performance optimization" — something keyword matching literally cannot do.
 
-Full benchmark reports: [`benchmark/QUALITY.md`](benchmark/QUALITY.md), [`benchmark/SCALE.md`](benchmark/SCALE.md), [`benchmark/REAL-EMBEDDINGS.md`](benchmark/REAL-EMBEDDINGS.md)
+Full benchmark reports: [`benchmark/LONGMEMEVAL.md`](benchmark/LONGMEMEVAL.md), [`benchmark/QUALITY.md`](benchmark/QUALITY.md), [`benchmark/SCALE.md`](benchmark/SCALE.md), [`benchmark/REAL-EMBEDDINGS.md`](benchmark/REAL-EMBEDDINGS.md)
 
 ## Supported Agents
 
@@ -160,22 +171,13 @@ GET  /agentmemory/profile       # Get project intelligence
 |---|---|
 | Claude Code user | Plugin install (hooks + MCP + skills) |
 | Building a custom agent with Claude SDK | AgentSDKProvider (zero config) |
-| Using Cursor, Windsurf, or any MCP client | MCP server (41 tools + 6 resources + 3 prompts) |
+| Using Cursor, Windsurf, or any MCP client | MCP server (43 tools + 6 resources + 3 prompts) |
 | Building your own agent framework | REST API (103 endpoints) |
 | Sharing memory across multiple agents | All agents point to the same iii-engine instance |
 
 ## Quick Start
 
-### 1. Install the Plugin (Claude Code)
-
-```bash
-/plugin marketplace add rohitg00/agentmemory
-/plugin install agentmemory
-```
-
-All 12 hooks, 4 skills, and MCP server are registered automatically.
-
-### 2. Start agentmemory
+### 1. Start agentmemory
 
 ```bash
 npx @agentmemory/agentmemory
@@ -190,20 +192,71 @@ git clone https://github.com/rohitg00/agentmemory.git && cd agentmemory
 npm install && npm run build && npm start
 ```
 
+### 2. Connect your agent
+
+**Claude Code (plugin — hooks + MCP + skills):**
+
+```bash
+/plugin marketplace add rohitg00/agentmemory
+/plugin install agentmemory
+```
+
+All 12 hooks, 4 skills, and MCP server are registered automatically.
+
+**Cursor / Windsurf / Cline / any MCP client:**
+
+Add to your MCP config (e.g. `~/.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "agentmemory": {
+      "command": "npx",
+      "args": ["agentmemory-mcp"]
+    }
+  }
+}
+```
+
+**Claude Desktop:**
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "agentmemory": {
+      "command": "npx",
+      "args": ["agentmemory-mcp"]
+    }
+  }
+}
+```
+
+**REST API (any agent, any language):**
+
+```bash
+curl -X POST http://localhost:3111/agentmemory/remember \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Always use jose for JWT on Edge", "type": "preference"}'
+
+curl -X POST http://localhost:3111/agentmemory/smart-search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "JWT authentication"}'
+```
+
 ### 3. Verify
 
 ```bash
 curl http://localhost:3111/agentmemory/health
-
-# Real-time viewer (auto-starts on port 3113)
-open http://localhost:3113
+open http://localhost:3113   # Real-time viewer
 ```
 
 ```json
 {
   "status": "healthy",
   "service": "agentmemory",
-  "version": "0.7.4",
+  "version": "0.7.7",
   "health": {
     "memory": { "heapUsed": 42000000, "heapTotal": 67000000 },
     "cpu": { "percent": 2.1 },
@@ -424,7 +477,7 @@ Collects every 30 seconds: heap usage, CPU percentage (delta sampling), event lo
 
 ## MCP Server
 
-### Tools (38)
+### Tools (43)
 
 | Tool | Description |
 |------|-------------|
@@ -616,7 +669,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 # Obsidian Export (v0.7.0)
 # OBSIDIAN_AUTO_EXPORT=false
 
-# MCP Tool Visibility (v0.7.0) — "core" (7 tools) or "all" (41 tools)
+# MCP Tool Visibility (v0.7.0) — "core" (7 tools) or "all" (43 tools)
 # AGENTMEMORY_TOOLS=core
 
 # Team Memory (v0.5.0)
@@ -724,9 +777,9 @@ agentmemory is built on iii-engine's three primitives:
 | Prometheus / Grafana | iii OTEL + built-in health monitor |
 | Redis (circuit breaker) | In-process circuit breaker + fallback chain |
 
-**113 source files. ~20,000 LOC. 627 tests. Zero external DB dependencies.**
+**118 source files. ~21,800 LOC. 646 tests. Zero external DB dependencies.**
 
-### Functions (89 mem:: functions)
+### Functions (123 mem:: functions)
 
 | Category | Functions | Purpose |
 |----------|-----------|---------|
@@ -808,7 +861,7 @@ agentmemory is built on iii-engine's three primitives:
 ```bash
 npm run dev               # Hot reload
 npm run build             # Production build (~425KB)
-npm test                  # Unit tests (627 tests, ~1.5s)
+npm test                  # Unit tests (646 tests, ~1.7s)
 npm run test:integration  # API tests (requires running services)
 ```
 
