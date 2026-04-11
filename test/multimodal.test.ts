@@ -7,6 +7,12 @@ vi.mock("iii-sdk", () => ({
   }),
 }));
 
+vi.mock("../src/functions/search.js", () => ({
+  getSearchIndex: () => ({
+    add: vi.fn(),
+  }),
+}));
+
 const mockTriggerVoid = vi.fn();
 const mockSdk = { triggerVoid: mockTriggerVoid } as any;
 
@@ -35,9 +41,18 @@ import { registerObserveFunction } from "../src/functions/observe.js";
 import { registerCompressFunction } from "../src/functions/compress.js";
 import type { RawObservation, CompressedObservation, MemoryProvider } from "../src/types.js";
 
+const VALID_COMPRESS_XML = `<type>image</type>
+<title>Screenshot of Red Dot</title>
+<subtitle>Test image observation</subtitle>
+<facts><fact>Image shows a single red pixel on white background</fact></facts>
+<narrative>A vision model described a screenshot showing a red dot on a white background</narrative>
+<concepts><concept>testing</concept><concept>screenshot</concept></concepts>
+<files></files>
+<importance>5</importance>`;
+
 describe("End-to-End Multimodal Flow", () => {
   let savedImagePath: string | undefined;
-  
+
   afterAll(() => {
     if (savedImagePath && existsSync(savedImagePath)) {
       rmSync(savedImagePath);
@@ -63,14 +78,14 @@ describe("End-to-End Multimodal Flow", () => {
     };
 
     const res = await observeCallback(fakeIncomingData);
-    const obsId = res.observationId;
+    expect(res.observationId).toBeDefined();
 
     const obsList = await kv.list("mem:obs:test-session");
     expect(obsList.length).toBe(1);
-    
+
     const raw = obsList[0] as RawObservation;
     expect(raw.modality).toBe("mixed");
-    
+
     expect(raw.imageData).toBeDefined();
     expect(typeof raw.imageData).toBe("string");
     expect(existsSync(raw.imageData!)).toBe(true);
@@ -78,52 +93,55 @@ describe("End-to-End Multimodal Flow", () => {
     savedImagePath = raw.imageData;
   });
 
-  it("Step 2 & 3: Vision model should receive the image and save a compressed version to KV", async () => {
+  it("Step 2 & 3: mem::compress should call the vision model and store compressed observation in KV", async () => {
     const mockProvider: MemoryProvider = {
       name: "mock-vision",
-      compress: async (systemPrompt, userPrompt) => {
+      compress: async (_systemPrompt, userPrompt) => {
         expect(userPrompt).toContain("TEST_VISION_RESULT: I see a red dot");
-        return JSON.stringify({ type: "error", title: "Test", facts: [], narrative: "Narrative test", confidence: 0.99 });
+        return VALID_COMPRESS_XML;
       },
       summarize: async () => "",
-      describeImage: async (base64, mimeType, prompt) => {
+      describeImage: async (_base64, _mimeType, _prompt) => {
         return "TEST_VISION_RESULT: I see a red dot";
-      }
+      },
     };
 
     let compressCallback: any = null;
-    const sdkMocker = { ...mockSdk, registerFunction: vi.fn((config, cb) => { if (config.id === "mem::compress") compressCallback = cb; }) };
+    const sdkMocker = {
+      ...mockSdk,
+      registerFunction: vi.fn((config, cb) => {
+        if (config.id === "mem::compress") compressCallback = cb;
+      }),
+    };
     registerCompressFunction(sdkMocker, kv, mockProvider);
+
+    expect(compressCallback).not.toBeNull();
 
     const rawObsList = await kv.list("mem:obs:test-session");
     const raw = rawObsList[0] as RawObservation;
-    
-    expect(raw).toHaveProperty("modality");
-    expect(raw).toHaveProperty("imageData");
-    expect(raw.imageData).toBe(savedImagePath);
-    
-    const finalCompressedObservation: CompressedObservation = {
-       id: raw.id!,
-       sessionId: raw.sessionId,
-       timestamp: raw.timestamp,
-       type: "error",
-       title: "Final Output",
-       facts: [],
-       narrative: "Final text narrative.",
-       concepts: ["testing"],
-       files: [],
-       importance: 5,
-       confidence: 1,
-       modality: raw.modality,
-       imageDescription: "TEST_VISION_RESULT: I see a red dot",
-       imageRef: raw.imageData
-    };
-    
-    await kv.set("mem:memories", raw.id!, finalCompressedObservation);
 
-    const memories = await kv.list("mem:memories");
-    expect(memories.length).toBe(1);
-    expect((memories[0] as CompressedObservation).imageRef).toBe(savedImagePath);
-    expect((memories[0] as CompressedObservation).imageDescription).toBe("TEST_VISION_RESULT: I see a red dot");
+    expect(raw.modality).toBeDefined();
+    expect(raw.imageData).toBe(savedImagePath);
+
+    const result = await compressCallback({
+      observationId: raw.id,
+      sessionId: raw.sessionId,
+      raw,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.compressed).toBeDefined();
+
+    const compressed = result.compressed as CompressedObservation;
+    expect(compressed.imageDescription).toBe("TEST_VISION_RESULT: I see a red dot");
+    expect(compressed.imageRef).toBe(savedImagePath);
+    expect(compressed.modality).toBe("mixed");
+    expect(compressed.title).toBe("Screenshot of Red Dot");
+    expect(compressed.narrative).toContain("red dot");
+
+    const stored = await kv.get<CompressedObservation>("mem:obs:test-session", raw.id!);
+    expect(stored).not.toBeNull();
+    expect(stored!.imageDescription).toBe("TEST_VISION_RESULT: I see a red dot");
+    expect(stored!.imageRef).toBe(savedImagePath);
   });
 });

@@ -1211,11 +1211,25 @@ export function registerApiTriggers(
     async (req: ApiRequest): Promise<Response> => {
       const authErr = checkAuth(req, secret);
       if (authErr) return authErr;
-      const body = req.body as Record<string, unknown>;
-      if (!body?.name) {
-        return { status_code: 400, body: { error: "name is required" } };
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      const steps = body.steps;
+      if (!name || !Array.isArray(steps) || steps.length === 0) {
+        return { status_code: 400, body: { error: "name and steps are required" } };
       }
-      const result = await sdk.trigger("mem::routine-create", body);
+      const payload = {
+        name,
+        description: typeof body.description === "string" ? body.description : undefined,
+        steps,
+        tags: Array.isArray(body.tags)
+          ? body.tags.filter((t): t is string => typeof t === "string")
+          : undefined,
+        frozen: typeof body.frozen === "boolean" ? body.frozen : undefined,
+        sourceProceduralIds: Array.isArray(body.sourceProceduralIds)
+          ? body.sourceProceduralIds.filter((id): id is string => typeof id === "string")
+          : undefined,
+      };
+      const result = await sdk.trigger("mem::routine-create", payload);
       return { status_code: 201, body: result };
     },
   );

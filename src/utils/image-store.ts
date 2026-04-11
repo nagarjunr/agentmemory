@@ -1,9 +1,18 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { writeFileSync, mkdirSync, existsSync, unlinkSync } from "node:fs";
 import { createHash } from "node:crypto";
 
-const IMAGES_DIR = join(homedir(), ".agentmemory", "images");
+export const IMAGES_DIR = join(homedir(), ".agentmemory", "images");
+
+export function isManagedImagePath(filePath: string): boolean {
+  const resolved = resolve(filePath);
+  return resolved.startsWith(IMAGES_DIR + "/") || resolved === IMAGES_DIR;
+}
+
+function contentHash(data: string): string {
+  return createHash("sha256").update(data).digest("hex");
+}
 
 export function saveImageToDisk(base64Data: string): string {
   if (!base64Data) return "";
@@ -25,7 +34,7 @@ export function saveImageToDisk(base64Data: string): string {
      ext = "jpg";
   }
 
-  const hash = createHash("sha256").update(cleanBase64).digest("hex");
+  const hash = contentHash(cleanBase64);
   const filePath = join(IMAGES_DIR, `${hash}.${ext}`);
   
   writeFileSync(filePath, Buffer.from(cleanBase64, "base64"));
@@ -34,8 +43,8 @@ export function saveImageToDisk(base64Data: string): string {
 
 export function deleteImage(filePath: string | undefined): void {
   if (!filePath) return;
+  if (!isManagedImagePath(filePath)) return;
   try {
-    const { existsSync, unlinkSync } = require("node:fs");
     if (existsSync(filePath)) {
       unlinkSync(filePath);
     }
@@ -43,4 +52,3 @@ export function deleteImage(filePath: string | undefined): void {
     console.error("[agentmemory] Failed to delete image context:", err);
   }
 }
-

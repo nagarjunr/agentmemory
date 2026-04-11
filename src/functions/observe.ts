@@ -112,15 +112,12 @@ export function registerObserveFunction(
         const hiddenImage = extractImage(sanitizedRaw);
         if (hiddenImage) {
           raw.modality = (raw.toolInput || raw.toolOutput || raw.userPrompt) ? "mixed" : "image";
-          
-          if (hiddenImage.startsWith("data:image/") || hiddenImage.startsWith("iVBORw0KGgo") || hiddenImage.startsWith("/9j/")) {
-            const { saveImageToDisk } = await import("../utils/image-store.js");
-            raw.imageData = saveImageToDisk(hiddenImage);
-          } else {
-            raw.imageData = hiddenImage;
-          }
         }
       }
+
+      const pendingImageData = (raw.modality === "image" || raw.modality === "mixed")
+        ? extractImage(typeof sanitizedRaw === "object" ? sanitizedRaw : undefined)
+        : undefined;
 
       return withKeyedLock(`obs:${payload.sessionId}`, async () => {
         if (maxObservationsPerSession && maxObservationsPerSession > 0) {
@@ -131,6 +128,11 @@ export function registerObserveFunction(
               error: `Session observation limit reached (${maxObservationsPerSession})`,
             };
           }
+        }
+
+        if (pendingImageData && (pendingImageData.startsWith("data:image/") || pendingImageData.startsWith("iVBORw0KGgo") || pendingImageData.startsWith("/9j/"))) {
+          const { saveImageToDisk } = await import("../utils/image-store.js");
+          raw.imageData = saveImageToDisk(pendingImageData);
         }
 
         await kv.set(KV.observations(payload.sessionId), obsId, raw);

@@ -1,6 +1,7 @@
 import type { ISdk } from "iii-sdk";
 import { getContext } from "iii-sdk";
 import { readFileSync } from "node:fs";
+import { isManagedImagePath } from "../utils/image-store.js";
 import type {
   RawObservation,
   CompressedObservation,
@@ -91,6 +92,9 @@ export function registerCompressFunction(
           let mimeType = "image/png";
 
           if (!data.raw.imageData.startsWith("/9j/") && !data.raw.imageData.startsWith("iVBOR")) {
+            if (!isManagedImagePath(data.raw.imageData)) {
+              throw new Error(`Refusing to read image outside managed store: ${data.raw.imageData}`);
+            }
             const fileBuffer = readFileSync(data.raw.imageData);
             base64Data = fileBuffer.toString("base64");
             if (data.raw.imageData.endsWith(".jpg") || data.raw.imageData.endsWith(".jpeg")) mimeType = "image/jpeg";
