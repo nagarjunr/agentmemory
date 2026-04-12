@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as p from "@clack/prompts";
+import { generateId } from "./state/schema.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
@@ -18,6 +19,7 @@ Usage: agentmemory [command] [options]
 Commands:
   (default)          Start agentmemory worker
   status             Show connection status, memory count, and health
+  demo               Seed sample sessions and show recall in action
 
 Options:
   --help, -h         Show this help
@@ -28,6 +30,7 @@ Options:
 Quick start:
   npx @agentmemory/agentmemory          # start with local iii-engine or Docker
   npx @agentmemory/agentmemory status   # check health
+  npx @agentmemory/agentmemory demo     # try it in 30 seconds (needs server running)
   npx agentmemory-mcp                   # standalone MCP server (no engine)
 `);
   process.exit(0);
@@ -267,14 +270,249 @@ async function runStatus() {
   }
 }
 
-if (args[0] === "status") {
-  runStatus().catch((err) => {
-    p.log.error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
-  });
-} else {
-  main().catch((err) => {
-    p.log.error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
-  });
+type DemoObservation = {
+  toolName: string;
+  toolInput: Record<string, string>;
+  toolOutput: string;
+};
+
+type DemoSession = {
+  id: string;
+  title: string;
+  observations: DemoObservation[];
+};
+
+type SearchResult = { query: string; hits: number; topTitle: string };
+
+function buildDemoSessions(): DemoSession[] {
+  return [
+    {
+      id: generateId("demo"),
+      title: "Session 1: JWT auth setup",
+      observations: [
+        {
+          toolName: "Write",
+          toolInput: { file_path: "src/middleware/auth.ts" },
+          toolOutput:
+            "Created JWT middleware using jose library. Tokens expire after 30 days. Chose jose over jsonwebtoken for Edge compatibility.",
+        },
+        {
+          toolName: "Write",
+          toolInput: { file_path: "test/auth.test.ts" },
+          toolOutput:
+            "Added token validation tests covering expired, malformed, and valid cases.",
+        },
+        {
+          toolName: "Bash",
+          toolInput: { command: "npm test" },
+          toolOutput: "All 12 auth tests passing.",
+        },
+      ],
+    },
+    {
+      id: generateId("demo"),
+      title: "Session 2: Database migration debugging",
+      observations: [
+        {
+          toolName: "Read",
+          toolInput: { file_path: "prisma/schema.prisma" },
+          toolOutput:
+            "Found N+1 query issue in user relations. Need to add include on posts query.",
+        },
+        {
+          toolName: "Edit",
+          toolInput: { file_path: "src/api/users.ts" },
+          toolOutput:
+            "Fixed N+1 by adding Prisma include. Query time dropped from 450ms to 28ms.",
+        },
+      ],
+    },
+    {
+      id: generateId("demo"),
+      title: "Session 3: Rate limiting",
+      observations: [
+        {
+          toolName: "Write",
+          toolInput: { file_path: "src/middleware/ratelimit.ts" },
+          toolOutput:
+            "Added rate limiting middleware with 100 req/min default. Uses in-memory store for dev, Redis for prod.",
+        },
+      ],
+    },
+  ];
 }
+
+async function postJson<T = unknown>(
+  url: string,
+  body: unknown,
+  timeoutMs = 5000,
+): Promise<T | null> {
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) return null;
+    return (await res.json().catch(() => null)) as T | null;
+  } catch {
+    return null;
+  }
+}
+
+async function postJsonStrict<T = unknown>(
+  url: string,
+  body: unknown,
+  timeoutMs = 5000,
+): Promise<T | null> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    const suffix = errBody ? ` — ${errBody.slice(0, 200)}` : "";
+    throw new Error(`POST ${url} failed: ${res.status} ${res.statusText}${suffix}`);
+  }
+  return (await res.json().catch(() => null)) as T | null;
+}
+
+async function seedDemoSession(
+  base: string,
+  project: string,
+  session: DemoSession,
+): Promise<number> {
+  await postJsonStrict(`${base}/agentmemory/session/start`, {
+    sessionId: session.id,
+    project,
+    cwd: project,
+  });
+
+  let stored = 0;
+  for (const obs of session.observations) {
+    const url = `${base}/agentmemory/observe`;
+    const payload = {
+      hookType: "post_tool_use",
+      sessionId: session.id,
+      timestamp: new Date().toISOString(),
+      data: {
+        tool_name: obs.toolName,
+        tool_input: obs.toolInput,
+        tool_output: obs.toolOutput,
+      },
+    };
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        stored++;
+      } else {
+        const body = await res.text().catch(() => "");
+        p.log.warn(
+          `observe failed for ${obs.toolName}: ${res.status} ${res.statusText}${body ? ` — ${body.slice(0, 160)}` : ""}`,
+        );
+      }
+    } catch (err) {
+      p.log.warn(
+        `observe request failed for ${obs.toolName}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  await postJsonStrict(`${base}/agentmemory/session/end`, { sessionId: session.id });
+  return stored;
+}
+
+async function runDemoSearch(base: string, query: string): Promise<SearchResult> {
+  const data = await postJson<{ results?: Array<{ title?: string }> }>(
+    `${base}/agentmemory/smart-search`,
+    { query, limit: 5 },
+    10000,
+  );
+  const items = data?.results ?? [];
+  return {
+    query,
+    hits: items.length,
+    topTitle: items[0]?.title ?? "(no results)",
+  };
+}
+
+async function runDemo() {
+  const port = getRestPort();
+  const base = `http://localhost:${port}`;
+  p.intro("agentmemory demo");
+
+  if (!(await isEngineRunning())) {
+    p.log.error(`Not running — no response on port ${port}`);
+    p.log.info("Start the server first: npx @agentmemory/agentmemory");
+    process.exit(1);
+  }
+
+  const demoProject = "/tmp/agentmemory-demo";
+  const sessions = buildDemoSessions();
+
+  const sSeed = p.spinner();
+  sSeed.start("Seeding 3 demo sessions with realistic observations...");
+
+  let totalObs = 0;
+  for (const session of sessions) {
+    totalObs += await seedDemoSession(base, demoProject, session);
+  }
+
+  sSeed.stop(`Seeded ${totalObs} observations across ${sessions.length} sessions`);
+
+  const queries = [
+    "jwt auth middleware",
+    "database performance optimization",
+    "rate limiting",
+  ];
+
+  const sQuery = p.spinner();
+  sQuery.start(`Running ${queries.length} smart-search queries...`);
+
+  const results: SearchResult[] = [];
+  for (const query of queries) {
+    results.push(await runDemoSearch(base, query));
+  }
+
+  sQuery.stop("Search complete");
+
+  const lines = [
+    `Project:       ${demoProject}`,
+    `Sessions:      ${sessions.length} seeded (${totalObs} observations)`,
+    "",
+    "Search results:",
+    ...results.flatMap((r) => [
+      `  "${r.query}"`,
+      `    → ${r.hits} hit(s), top: ${r.topTitle.slice(0, 60)}`,
+    ]),
+    "",
+    `Notice: searching "database performance optimization"`,
+    `found the N+1 query fix — keyword matching can't do that.`,
+    "",
+    `Viewer:        http://localhost:${port + 2}`,
+    `Clean up with: curl -X DELETE "${base}/agentmemory/sessions?project=${demoProject}"`,
+  ];
+
+  p.note(lines.join("\n"), "demo complete");
+  p.log.success("agentmemory is working. Point your agent at it and get back to coding.");
+}
+
+const commands: Record<string, () => Promise<void>> = {
+  status: runStatus,
+  demo: runDemo,
+};
+
+const handler = commands[args[0] ?? ""] ?? main;
+handler().catch((err) => {
+  p.log.error(err instanceof Error ? err.message : String(err));
+  process.exit(1);
+});
