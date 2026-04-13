@@ -97,15 +97,12 @@ function whichBinary(name: string): string | null {
 function fallbackIiiPaths(): string[] {
   if (IS_WINDOWS) {
     const userProfile = process.env["USERPROFILE"] || "";
-    const localAppData = process.env["LOCALAPPDATA"] || "";
     return [
-      join(userProfile, ".cargo", "bin", "iii.exe"),
-      join(localAppData, "cargo", "bin", "iii.exe"),
       join(userProfile, ".local", "bin", "iii.exe"),
+      join(userProfile, "bin", "iii.exe"),
     ].filter(Boolean);
   }
   return [
-    join(process.env["HOME"] || "", ".cargo", "bin", "iii"),
     join(process.env["HOME"] || "", ".local", "bin", "iii"),
     "/usr/local/bin/iii",
   ];
@@ -235,14 +232,17 @@ function installInstructions(): string[] {
     return [
       "agentmemory requires the `iii-engine` runtime. Pick one:",
       "",
-      "  A) Rust toolchain (recommended):",
-      "     1. Install rustup: https://rustup.rs/",
-      "     2. Restart your shell so cargo is on PATH",
-      "     3. cargo install iii-engine",
+      "  A) Download the prebuilt Windows binary:",
+      "     1. Open https://github.com/iii-hq/iii/releases/latest",
+      "     2. Download iii-x86_64-pc-windows-msvc.zip",
+      "        (or iii-aarch64-pc-windows-msvc.zip on ARM)",
+      "     3. Extract iii.exe and either add its folder to PATH",
+      "        or move it to %USERPROFILE%\\.local\\bin\\iii.exe",
+      "     4. Re-run: npx @agentmemory/agentmemory",
       "",
       "  B) Docker Desktop:",
       "     1. Install Docker Desktop for Windows",
-      "     2. Start Docker Desktop (make sure the engine is running)",
+      "     2. Start Docker Desktop (engine must be running)",
       "     3. Re-run: npx @agentmemory/agentmemory",
       "",
       "Or skip the engine entirely for standalone MCP:",
@@ -252,13 +252,15 @@ function installInstructions(): string[] {
   return [
     "agentmemory requires the `iii-engine` runtime. Pick one:",
     "",
-    "  A) cargo install iii-engine",
-    "     (install rustup first if needed: https://rustup.rs/)",
+    "  A) curl -fsSL https://install.iii.dev/iii/main/install.sh | sh",
+    "     (installs the prebuilt iii binary into ~/.local/bin/iii)",
     "",
     "  B) Docker: install Docker Desktop or docker-ce, then re-run",
     "",
     "Or skip the engine entirely for standalone MCP:",
     "  npx @agentmemory/agentmemory mcp",
+    "",
+    "Docs: https://iii.dev/docs",
   ];
 }
 
@@ -319,9 +321,12 @@ async function main() {
       p.note(
         [
           "Common causes:",
-          "  - iii-engine version mismatch (try: cargo install iii-engine --force)",
+          "  - iii-engine version mismatch — reinstall the latest binary",
+          "    (sh script on macOS/Linux, GitHub release zip on Windows)",
           "  - Docker Desktop not running (if you're using the Docker path)",
           "  - Port already in use (see below)",
+          "",
+          "See https://iii.dev/docs for current install instructions.",
         ].join("\n"),
         "Troubleshooting",
       );
