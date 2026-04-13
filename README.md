@@ -375,7 +375,60 @@ npm install && npm run build && npm start
 
 This starts agentmemory with a local `iii-engine` if `iii` is already installed, or falls back to Docker Compose if Docker is available. REST, streams, and the viewer bind to `127.0.0.1` by default.
 
-Install `iii-engine` manually with `cargo install iii-engine` or follow [iii.dev docs](https://iii.dev/docs).
+Install `iii-engine` manually:
+
+- **macOS / Linux:** `curl -fsSL https://install.iii.dev/iii/main/install.sh | sh`
+- **Windows:** download `iii-x86_64-pc-windows-msvc.zip` from [iii-hq/iii releases](https://github.com/iii-hq/iii/releases/latest), extract `iii.exe`, add to PATH
+
+Or use Docker (the bundled `docker-compose.yml` pulls `iiidev/iii:latest`). Full docs: [iii.dev/docs](https://iii.dev/docs).
+
+### Windows
+
+agentmemory runs on Windows 10/11, but the Node.js package alone isn't enough — you also need the `iii-engine` runtime (a separate native binary) as a background process. The official upstream installer is a `sh` script and there is no PowerShell installer or scoop/winget package today, so Windows users have two paths:
+
+**Option A — Prebuilt Windows binary (recommended):**
+
+```powershell
+# 1. Open https://github.com/iii-hq/iii/releases/latest in your browser
+# 2. Download iii-x86_64-pc-windows-msvc.zip
+#    (or iii-aarch64-pc-windows-msvc.zip if you're on an ARM machine)
+# 3. Extract iii.exe somewhere on PATH, or place it at:
+#    %USERPROFILE%\.local\bin\iii.exe
+#    (agentmemory checks that location automatically)
+# 4. Verify:
+iii --version
+
+# 5. Then run agentmemory as usual:
+npx -y @agentmemory/agentmemory
+```
+
+**Option B — Docker Desktop:**
+
+```powershell
+# 1. Install Docker Desktop for Windows
+# 2. Start Docker Desktop and make sure the engine is running
+# 3. Run agentmemory — it will auto-start the bundled compose file:
+npx -y @agentmemory/agentmemory
+```
+
+**Option C — standalone MCP only (no engine):** if you only need the MCP tools for your agent and don't need the REST API, viewer, or cron jobs, skip the engine entirely:
+
+```powershell
+npx -y @agentmemory/agentmemory mcp
+# or via the shim package:
+npx -y agentmemory-mcp
+```
+
+**Diagnostics for Windows:** if `npx @agentmemory/agentmemory` fails, re-run with `--verbose` to see the actual engine stderr. Common failure modes:
+
+| Symptom | Fix |
+|---|---|
+| `iii-engine process started` then `did not become ready within 15s` | Engine crashed on startup — re-run with `--verbose`, check stderr |
+| `Could not start iii-engine` | Neither `iii.exe` nor Docker is installed. See Option A or B above |
+| Port conflict | `netstat -ano \| findstr :3111` to see what's bound, then kill it or use `--port <N>` |
+| Docker fallback skipped even though Docker is installed | Make sure Docker Desktop is actually running (system tray icon) |
+
+> Note: there is no `cargo install iii-engine` — `iii` is not published to crates.io. The only supported install methods are the prebuilt binary above, the upstream `sh` install script (macOS/Linux only), and the Docker image.
 
 ---
 
