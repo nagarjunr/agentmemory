@@ -359,7 +359,7 @@ Then add the MCP config for your agent:
 | **OpenClaw** | Add to MCP config: `{"mcpServers": {"agentmemory": {"command": "npx", "args": ["-y", "agentmemory-mcp"]}}}` or use the [gateway plugin](integrations/openclaw/) |
 | **Gemini CLI** | `gemini mcp add agentmemory -- npx -y agentmemory-mcp` |
 | **Codex CLI** | Add to `.codex/config.yaml`: `mcp_servers: {agentmemory: {command: npx, args: ["-y", "agentmemory-mcp"]}}` |
-| **OpenCode** | Add to `.opencode/config.json`: `{"mcpServers": {"agentmemory": {"command": "npx", "args": ["-y", "agentmemory-mcp"]}}}` |
+| **OpenCode** | Add to `opencode.json`: `{"mcp": {"agentmemory": {"type": "local", "command": ["npx", "-y", "agentmemory-mcp"], "enabled": true}}}` |
 | **Hermes Agent** | Add to `~/.hermes/config.yaml` or use the [memory provider plugin](integrations/hermes/) |
 | **Cline / Goose / Kilo Code** | Add MCP server in settings |
 | **Claude Desktop** | Add to `claude_desktop_config.json`: `{"mcpServers": {"agentmemory": {"command": "npx", "args": ["-y", "agentmemory-mcp"]}}}` |
@@ -595,12 +595,26 @@ npx -y agentmemory-mcp                 # shim package alias
 
 Or add to your agent's MCP config:
 
+Most agents (Cursor, Claude Desktop, Cline, etc.):
 ```json
 {
   "mcpServers": {
     "agentmemory": {
       "command": "npx",
       "args": ["-y", "agentmemory-mcp"]
+    }
+  }
+}
+```
+
+OpenCode (`opencode.json`):
+```json
+{
+  "mcp": {
+    "agentmemory": {
+      "type": "local",
+      "command": ["npx", "-y", "agentmemory-mcp"],
+      "enabled": true
     }
   }
 }
