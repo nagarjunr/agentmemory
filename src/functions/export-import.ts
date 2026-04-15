@@ -1,5 +1,4 @@
 import type { ISdk } from "iii-sdk";
-import { getContext } from "iii-sdk";
 import type {
   Session,
   CompressedObservation,
@@ -30,11 +29,11 @@ import { KV } from "../state/schema.js";
 import { StateKV } from "../state/kv.js";
 import { VERSION } from "../version.js";
 import { recordAudit } from "./audit.js";
+import { logger } from "../logger.js";
 
 export function registerExportImportFunction(sdk: ISdk, kv: StateKV): void {
   sdk.registerFunction("mem::export", 
     async (data?: { maxSessions?: number; offset?: number }) => {
-      const ctx = getContext();
       const rawMax = Number(data?.maxSessions);
       const maxSessions = Number.isFinite(rawMax) && rawMax > 0 ? Math.min(Math.floor(rawMax), 1000) : undefined;
       const rawOffset = Number(data?.offset);
@@ -150,7 +149,7 @@ export function registerExportImportFunction(sdk: ISdk, kv: StateKV): void {
         (sum, arr) => sum + arr.length,
         0,
       );
-      ctx.logger.info("Export complete", {
+      logger.info("Export complete", {
         sessions: paginatedSessions.length,
         totalSessions: allSessions.length,
         observations: totalObs,
@@ -167,7 +166,6 @@ export function registerExportImportFunction(sdk: ISdk, kv: StateKV): void {
       exportData: ExportData;
       strategy?: "merge" | "replace" | "skip";
     }) => {
-      const ctx = getContext();
       if (
         !data?.exportData ||
         typeof data.exportData !== "object" ||
@@ -178,7 +176,7 @@ export function registerExportImportFunction(sdk: ISdk, kv: StateKV): void {
       const strategy = data.strategy || "merge";
       const importData = data.exportData;
 
-      const supportedVersions = new Set(["0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.6.1", "0.7.0", "0.7.2", "0.7.3", "0.7.4", "0.7.5", "0.7.6", "0.7.7", "0.7.9", "0.8.0", "0.8.1", "0.8.2", "0.8.3", "0.8.4", "0.8.5", "0.8.6", "0.8.7", "0.8.8", "0.8.9", "0.8.10"]);
+      const supportedVersions = new Set(["0.3.0", "0.4.0", "0.5.0", "0.6.0", "0.6.1", "0.7.0", "0.7.2", "0.7.3", "0.7.4", "0.7.5", "0.7.6", "0.7.7", "0.7.9", "0.8.0", "0.8.1", "0.8.2", "0.8.3", "0.8.4", "0.8.5", "0.8.6", "0.8.7", "0.8.8", "0.8.9", "0.8.10", "0.8.11"]);
       if (!supportedVersions.has(importData.version)) {
         return {
           success: false,
@@ -574,7 +572,7 @@ export function registerExportImportFunction(sdk: ISdk, kv: StateKV): void {
         }
       }
 
-      ctx.logger.info("Import complete", { strategy, ...stats });
+      logger.info("Import complete", { strategy, ...stats });
       await recordAudit(kv, "import", "mem::import", [], {
         strategy,
         stats,
