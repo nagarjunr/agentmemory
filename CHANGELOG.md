@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.8.12] — 2026-04-16
+
+### Added
+
+- Added token-efficient `memory_recall` output modes:
+  - `format: "full"` (default)
+  - `format: "compact"` (returns compact observation rows)
+  - `format: "narrative"` (title + narrative text for low-token recall)
+- Added `token_budget` support to `memory_recall` / `mem::search` to trim results to a target budget and return `tokens_used`, `tokens_budget`, and `truncated` metadata.
+- Added new MCP + REST tool `memory_compress_file` (`mem::compress-file` / `/agentmemory/compress-file`) to compress markdown files while preserving headings, URLs, and fenced code blocks.
+
+### Changed
+
+- Updated MCP tool count to 44 and REST endpoint count to 104.
+- Updated docs and plugin metadata for new tool/endpoint counts.
+- Added test coverage for search formats, token budget behavior, and file compression validation.
+
 ## [0.8.11] — 2026-04-15
 
 **Fix**: `node dist/index.mjs` crashed on first import after the iii-sdk v0.11 migration (#116) merged. iii-sdk v0.11 dropped `getContext()`, but 32 `src/functions/*.ts` files still imported and called it. Added `src/logger.ts` (thin stderr shim with the same `.info/.warn/.error` signature) and mechanically replaced every `ctx.logger.*` call. Updated all 45 test mock blocks. Fixed `search.ts` `registerFunction` call to use the v0.11 string-ID API.
@@ -52,6 +69,7 @@ My initial diagnosis on the #143 thread pattern-matched too quickly to #138 and 
   and restart Claude Code. You'll see the startup warning in the engine logs confirming it's active.
 
 [0.8.10]: https://github.com/rohitg00/agentmemory/compare/v0.8.9...v0.8.10
+[0.8.12]: https://github.com/rohitg00/agentmemory/compare/v0.8.11...v0.8.12
 
 ## [0.8.9] — 2026-04-14
 
