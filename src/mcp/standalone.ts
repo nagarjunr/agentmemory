@@ -6,6 +6,7 @@ import { getVisibleTools } from "./tools-registry.js";
 import { getStandalonePersistPath } from "../config.js";
 import { VERSION } from "../version.js";
 import { generateId } from "../state/schema.js";
+import { resolveHandle, type Handle, type ProxyHandle } from "./rest-proxy.js";
 
 const IMPLEMENTED_TOOLS = new Set([
   "memory_save",
@@ -24,10 +25,22 @@ const SERVER_INFO = {
 };
 
 const kv = new InMemoryKV(getStandalonePersistPath());
+let modeAnnounced = false;
 
-// Accept arrays, comma-separated strings, or a single string and always
-// return a trimmed, non-empty string array. Plugin skills (#139) tell
-// Claude to pass arrays; older clients may still pass CSV strings.
+function announceMode(handle: Handle): void {
+  if (modeAnnounced) return;
+  modeAnnounced = true;
+  if (handle.mode === "proxy") {
+    process.stderr.write(
+      `[@agentmemory/mcp] proxying to agentmemory server at ${handle.baseUrl}\n`,
+    );
+  } else {
+    process.stderr.write(
+      `[@agentmemory/mcp] no server reachable at ${process.env["AGENTMEMORY_URL"] || "http://localhost:3111"}; falling back to local InMemoryKV\n`,
+    );
+  }
+}
+
 function normalizeList(value: unknown): string[] {
   if (!value) return [];
   if (Array.isArray(value)) {
@@ -44,29 +57,112 @@ function normalizeList(value: unknown): string[] {
   return [];
 }
 
-// Parse a user-supplied limit argument, clamping to a sane range so an
-// adversarial or buggy caller can't request a million memories or pass
-// a negative / NaN / Infinity value that breaks .slice().
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
 function parseLimit(raw: unknown, fallback = DEFAULT_LIMIT): number {
-  // Only accept explicit numbers or numeric strings. Reject booleans,
-  // objects, arrays, null, undefined — they shouldn't silently coerce
-  // (e.g. `Number(true) === 1` would sneak a limit of 1 through).
   if (typeof raw !== "number" && typeof raw !== "string") return fallback;
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) return fallback;
   return Math.min(Math.floor(n), MAX_LIMIT);
 }
 
-export async function handleToolCall(
+function textResponse(payload: unknown, pretty = false): {
+  content: Array<{ type: string; text: string }>;
+} {
+  return {
+    content: [
+      { type: "text", text: JSON.stringify(payload, null, pretty ? 2 : 0) },
+    ],
+  };
+}
+
+async function handleProxy(
   toolName: string,
   args: Record<string, unknown>,
-  kvInstance: InMemoryKV = kv,
+  handle: ProxyHandle,
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   switch (toolName) {
     case "memory_save": {
-      const rawContent = args.content;
+      const content = args["content"];
+      if (typeof content !== "string" || !content.trim()) {
+        throw new Error("content is required");
+      }
+      const payload = {
+        content,
+        type: (args["type"] as string) || "fact",
+        concepts: normalizeList(args["concepts"]),
+        files: normalizeList(args["files"]),
+      };
+      const result = await handle.call("/agentmemory/remember", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      return textResponse(result);
+    }
+
+    case "memory_recall":
+    case "memory_smart_search": {
+      const query = args["query"];
+      if (typeof query !== "string" || !query.trim()) {
+        throw new Error("query is required");
+      }
+      const limit = parseLimit(args["limit"]);
+      const result = await handle.call("/agentmemory/smart-search", {
+        method: "POST",
+        body: JSON.stringify({ query: query.trim(), limit }),
+      });
+      return textResponse(result, true);
+    }
+
+    case "memory_sessions": {
+      const limit = parseLimit(args["limit"], 20);
+      const result = await handle.call(
+        `/agentmemory/sessions?limit=${limit}`,
+        { method: "GET" },
+      );
+      return textResponse(result, true);
+    }
+
+    case "memory_governance_delete": {
+      const ids = normalizeList(args["memoryIds"]);
+      if (ids.length === 0) throw new Error("memoryIds is required");
+      const result = await handle.call("/agentmemory/governance/memories", {
+        method: "POST",
+        body: JSON.stringify({
+          memoryIds: ids,
+          reason: (args["reason"] as string) || "plugin skill request",
+        }),
+      });
+      return textResponse(result);
+    }
+
+    case "memory_export": {
+      const result = await handle.call("/agentmemory/export", { method: "GET" });
+      return textResponse(result, true);
+    }
+
+    case "memory_audit": {
+      const limit = parseLimit(args["limit"], 50);
+      const result = await handle.call(
+        `/agentmemory/audit?limit=${limit}`,
+        { method: "GET" },
+      );
+      return textResponse(result, true);
+    }
+
+    default:
+      throw new Error(`Unknown tool: ${toolName}`);
+  }
+}
+
+async function handleLocal(
+  toolName: string,
+  args: Record<string, unknown>,
+  kvInstance: InMemoryKV,
+): Promise<{ content: Array<{ type: string; text: string }> }> {
+  switch (toolName) {
+    case "memory_save": {
+      const rawContent = args["content"];
       if (typeof rawContent !== "string" || !rawContent.trim()) {
         throw new Error("content is required");
       }
@@ -75,11 +171,11 @@ export async function handleToolCall(
       const isoNow = new Date().toISOString();
       await kvInstance.set("mem:memories", id, {
         id,
-        type: (args.type as string) || "fact",
+        type: (args["type"] as string) || "fact",
         title: content.slice(0, 80),
         content,
-        concepts: normalizeList(args.concepts),
-        files: normalizeList(args.files),
+        concepts: normalizeList(args["concepts"]),
+        files: normalizeList(args["files"]),
         createdAt: isoNow,
         updatedAt: isoNow,
         strength: 7,
@@ -88,36 +184,21 @@ export async function handleToolCall(
         sessionIds: [],
       });
       kvInstance.persist();
-      return {
-        content: [{ type: "text", text: JSON.stringify({ saved: id }) }],
-      };
+      return textResponse({ saved: id });
     }
 
     case "memory_recall":
     case "memory_smart_search": {
-      // memory_smart_search would normally run hybrid BM25+vector+graph
-      // in the engine-backed path, but the standalone shim (#139) only
-      // has the in-memory KV store, so we fall back to a substring
-      // filter. The tool name is kept so plugin skills that say "use
-      // memory_smart_search" still work.
-      //
-      // Empty/missing query is rejected — the forget skill uses this
-      // as its confirmation step before a destructive delete, and an
-      // empty query would match every memory in the store, surfacing
-      // unrelated IDs for deletion.
-      const rawQuery = args.query;
+      const rawQuery = args["query"];
       if (typeof rawQuery !== "string" || !rawQuery.trim()) {
         throw new Error("query is required");
       }
       const query = rawQuery.trim().toLowerCase();
-      const limit = parseLimit(args.limit);
+      const limit = parseLimit(args["limit"]);
       const all =
         await kvInstance.list<Record<string, unknown>>("mem:memories");
       const results = all
         .filter((m) => {
-          // Search title/content AND files/concepts/sessionIds so the
-          // forget skill can find memories by file path or session
-          // ID, not just by narrative text.
           const text = [
             typeof m["title"] === "string" ? m["title"] : "",
             typeof m["content"] === "string" ? m["content"] : "",
@@ -131,39 +212,19 @@ export async function handleToolCall(
           return query.split(/\s+/).every((word) => text.includes(word));
         })
         .slice(0, limit);
-      return {
-        content: [{ type: "text", text: JSON.stringify(results, null, 2) }],
-      };
+      return textResponse(results, true);
     }
 
     case "memory_sessions": {
       const sessions =
         await kvInstance.list<Record<string, unknown>>("mem:sessions");
-      const limit = parseLimit(args.limit, 20);
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              { sessions: sessions.slice(0, limit) },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+      const limit = parseLimit(args["limit"], 20);
+      return textResponse({ sessions: sessions.slice(0, limit) }, true);
     }
 
     case "memory_governance_delete": {
-      // Deletes memories by id. Accepts either a memoryIds array or a
-      // comma-separated memoryIds string (same normalization pattern as
-      // concepts/files) so plugin skills and legacy clients both work.
-      // Unknown ids are silently skipped — the response reports how many
-      // were actually removed so the caller can tell the user.
-      const ids = normalizeList(args.memoryIds);
-      if (ids.length === 0) {
-        throw new Error("memoryIds is required");
-      }
+      const ids = normalizeList(args["memoryIds"]);
+      if (ids.length === 0) throw new Error("memoryIds is required");
       let deleted = 0;
       for (const id of ids) {
         const existing = await kvInstance.get("mem:memories", id);
@@ -173,52 +234,26 @@ export async function handleToolCall(
         }
       }
       kvInstance.persist();
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              deleted,
-              requested: ids.length,
-              reason: (args.reason as string) || "plugin skill request",
-            }),
-          },
-        ],
-      };
+      return textResponse({
+        deleted,
+        requested: ids.length,
+        reason: (args["reason"] as string) || "plugin skill request",
+      });
     }
 
     case "memory_export": {
       const memories = await kvInstance.list("mem:memories");
       const sessions = await kvInstance.list("mem:sessions");
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              { version: VERSION, memories, sessions },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+      return textResponse({ version: VERSION, memories, sessions }, true);
     }
 
     case "memory_audit": {
       const entries = await kvInstance.list("mem:audit");
-      const limit = parseLimit(args.limit, 50);
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              (entries as Array<Record<string, unknown>>).slice(0, limit),
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+      const limit = parseLimit(args["limit"], 50);
+      return textResponse(
+        (entries as Array<Record<string, unknown>>).slice(0, limit),
+        true,
+      );
     }
 
     default:
@@ -226,14 +261,31 @@ export async function handleToolCall(
   }
 }
 
+export async function handleToolCall(
+  toolName: string,
+  args: Record<string, unknown>,
+  kvInstance: InMemoryKV = kv,
+): Promise<{ content: Array<{ type: string; text: string }> }> {
+  const handle = await resolveHandle();
+  announceMode(handle);
+  if (handle.mode === "proxy") {
+    try {
+      return await handleProxy(toolName, args, handle);
+    } catch (err) {
+      process.stderr.write(
+        `[@agentmemory/mcp] proxy call failed for ${toolName}: ${err instanceof Error ? err.message : String(err)}; falling back to local KV for this request\n`,
+      );
+    }
+  }
+  return handleLocal(toolName, args, kvInstance);
+}
+
 const transport = createStdioTransport(async (method, params) => {
   switch (method) {
     case "initialize":
       return {
         protocolVersion: SERVER_INFO.protocolVersion,
-        capabilities: {
-          tools: { listChanged: false },
-        },
+        capabilities: { tools: { listChanged: false } },
         serverInfo: {
           name: SERVER_INFO.name,
           version: SERVER_INFO.version,
