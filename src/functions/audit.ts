@@ -23,7 +23,9 @@ import { logger } from "../logger.js";
 //
 // operation field:
 //   - "delete"          — permanent removal (governance, retention sweep, evict).
-//   - "forget"          — user-initiated forget (mem::forget, mem::auto-forget).
+//   - "forget"          — forget/removal flows. Scoped when emitted by
+//                         mem::forget (user-initiated); bulk-batched when
+//                         emitted by mem::auto-forget (automatic sweep).
 //   - everything else   — see AuditEntry["operation"] union in src/types.ts.
 //
 // When adding a new deletion path, add an explicit recordAudit call
