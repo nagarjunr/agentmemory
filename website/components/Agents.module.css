@@ -1,0 +1,48 @@
+.wrap {
+  padding: 96px 0;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1px;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 40px;
+  background: var(--charcoal);
+  border: 1px solid var(--charcoal);
+  list-style: none;
+}
+.tile {
+  background: var(--abyss);
+  padding: 40px 24px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.12px;
+  text-transform: uppercase;
+  transition:
+    background 200ms ease,
+    color 200ms ease,
+    transform 200ms ease;
+  position: relative;
+}
+.tile::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 1px solid transparent;
+  transition: border-color 200ms ease;
+}
+.tile:hover {
+  background: var(--iron);
+  color: var(--gold);
+  transform: translateY(-2px);
+}
+.tile:hover::after {
+  border-color: rgba(255, 192, 0, 0.3);
+}
+@media (max-width: 640px) {
+  .grid {
+    padding: 0 20px;
+  }
+}
