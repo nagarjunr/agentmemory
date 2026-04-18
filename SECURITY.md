@@ -6,8 +6,8 @@
 
 Use one of:
 
-- **GitHub Security Advisories** — private report form at <https://github.com/rohitg00/agentmemory/security/advisories/new>. This is the preferred channel. GitHub routes the report to the Maintainers and assigns a GHSA identifier. You stay in a private thread with us until the fix ships.
-- **Email** — `ghumare64@gmail.com` with subject `agentmemory security`. Please do not encrypt the mail unless you and we have already exchanged keys.
+- **GitHub Security Advisories (preferred)** — private report form at <https://github.com/rohitg00/agentmemory/security/advisories/new>. GitHub routes the report to the Maintainers, assigns a GHSA identifier, and keeps you in a private thread until the fix ships. All sensitive details (stack traces, credentials, exploit payloads) stay end-to-end within GitHub's security infrastructure — use this channel whenever possible.
+- **Encrypted email (fallback)** — if GitHub is unavailable or the issue cannot be described in the GHSA form, send an encrypted message to `ghumare64@gmail.com` with subject `agentmemory security`. Encrypt with the Maintainer public keys published at <https://github.com/rohitg00.gpg> (PGP) and <https://github.com/rohitg00.keys> (SSH for verification); attach your own public key so we can reply encrypted. Plaintext email is accepted only as a last resort — prefer GHSA.
 
 Include, at minimum:
 
@@ -29,7 +29,7 @@ Include, at minimum:
 | Version | Security fixes? |
 |-|-|
 | Latest minor (currently `0.9.x`) | Yes |
-| Previous minor (currently `0.8.x`) | Critical / High severity only, for 90 days after a new minor releases |
+| Previous minor (currently `0.8.x`) | Critical / High severity only, for 90 days after a new minor is released |
 | Older | No |
 
 At v1.0 this policy switches to a stated LTS window per the roadmap.

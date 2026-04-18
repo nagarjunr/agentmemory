@@ -15,6 +15,16 @@ Reports go to **ghumare64@gmail.com** with subject `agentmemory CoC`. All report
 
 Responses follow the Covenant's enforcement ladder — correction, warning, temporary ban, permanent ban — and are decided by the project Maintainers listed in [MAINTAINERS.md](./MAINTAINERS.md). Where a Maintainer is a party to the report, that Maintainer recuses.
 
+### Escalation when no impartial Maintainer is available
+
+If every listed Maintainer recuses, or if the project is operating with a single Maintainer and the report concerns that Maintainer, the report is forwarded to an external neutral contact for independent adjudication. The current fallback chain, in order:
+
+1. **Contributor Covenant community ombudsperson** — email `ombudsperson@contributor-covenant.org` (see <https://www.contributor-covenant.org/faq/>).
+2. **Hosting foundation abuse channel** — when agentmemory is accepted into a foundation (see `GOVERNANCE.md`), reports can be routed to that foundation's conduct committee instead. The current contact will be published here at that time.
+3. **GitHub Trust & Safety** — for conduct that occurs inside GitHub spaces, the report can also be filed through <https://support.github.com/contact/report-abuse>.
+
+The external contact receives the original report verbatim (redacted only of third-party PII unrelated to the incident) and decides the enforcement step. The Maintainer body executes whatever enforcement action the external contact recommends. This ensures no report can dead-end because every internal reviewer is conflicted.
+
 ## Scope
 
 This applies to every project space:
