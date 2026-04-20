@@ -770,7 +770,7 @@ async function runUpgrade() {
       );
       if (!installerOk) {
         p.log.warn(
-          "iii-engine installer failed. Fallbacks: Docker (`docker pull iiidev/iii:latest`) or releases at https://github.com/iii-dev/iii-engine/releases.",
+          "iii-engine installer failed. Fallbacks: Docker (`docker pull iiidev/iii:latest`) or releases at https://github.com/iii-hq/iii/releases/latest.",
         );
       }
     } else {
@@ -813,17 +813,24 @@ async function runImportJsonl(): Promise<void> {
   const base = `http://localhost:${port}`;
 
   let probeOk = false;
+  let probeDetail = "";
   try {
     const probe = await fetch(`${base}/agentmemory/livez`, {
       signal: AbortSignal.timeout(2000),
     });
     probeOk = probe.ok;
-  } catch {
+    if (!probeOk) {
+      const probeBody = await probe.text().catch(() => "");
+      probeDetail = `reachable but unhealthy (HTTP ${probe.status}${probeBody ? `: ${probeBody.slice(0, 200)}` : ""})`;
+    }
+  } catch (err) {
     probeOk = false;
+    const msg = err instanceof Error ? err.message : String(err);
+    probeDetail = `unreachable (${msg})`;
   }
   if (!probeOk) {
     p.log.error(
-      `agentmemory is not running on port ${port}. Start it with \`npx @agentmemory/agentmemory\` in another terminal, then re-run this command.`,
+      `agentmemory livez probe failed on port ${port}: ${probeDetail}. Start it with \`npx @agentmemory/agentmemory\` in another terminal, then re-run this command.`,
     );
     process.exit(1);
   }
@@ -865,9 +872,15 @@ async function runImportJsonl(): Promise<void> {
         process.exit(1);
       }
     }
-    if (!res.ok || json.success === false) {
+    if (!res.ok || json.success !== true) {
       spinner.stop("failed");
-      const detail = json.error || (text.length === 0 ? "empty response body" : `HTTP ${res.status}`);
+      const detail =
+        json.error ||
+        (text.length === 0
+          ? "empty response body"
+          : json.success === undefined
+            ? `HTTP ${res.status} (response missing success field)`
+            : `HTTP ${res.status}`);
       if (res.status === 401) {
         p.log.error(
           `${detail}. Set AGENTMEMORY_SECRET to match the server's secret and re-run.`,
