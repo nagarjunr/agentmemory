@@ -714,7 +714,6 @@ async function runUpgrade() {
 
   const pnpmBin = whichBinary("pnpm");
   const npmBin = whichBinary("npm");
-  const cargoBin = whichBinary("cargo");
   const dockerBin = whichBinary("docker");
 
   p.log.info(`Working directory: ${cwd}`);
@@ -752,9 +751,11 @@ async function runUpgrade() {
     p.log.warn("No package.json in current directory. Skipping JS dependency upgrade.");
   }
 
-  if (cargoBin) {
+  const shBin = whichBinary("sh");
+  const curlBin = whichBinary("curl");
+  if (shBin && curlBin) {
     const upgradeEngine = await p.confirm({
-      message: "Upgrade iii-engine via cargo install --force?",
+      message: "Re-run the iii-engine install script (curl | sh)?",
       initialValue: true,
     });
     if (p.isCancel(upgradeEngine)) {
@@ -762,15 +763,21 @@ async function runUpgrade() {
       return process.exit(0);
     }
     if (upgradeEngine === true) {
-      const cargoOk = runCommand(cargoBin, ["install", "iii-engine", "--force"], {
-        label: "Upgrading iii-engine (cargo)",
-      });
-      requireSuccess(cargoOk, "cargo install iii-engine --force");
+      const installerOk = runCommand(
+        shBin,
+        ["-c", "curl -fsSL https://install.iii.dev/iii/main/install.sh | sh"],
+        { label: "Upgrading iii-engine via installer", optional: true },
+      );
+      if (!installerOk) {
+        p.log.warn(
+          "iii-engine installer failed. Fallbacks: Docker (`docker pull iiidev/iii:latest`) or releases at https://github.com/iii-hq/iii/releases/latest.",
+        );
+      }
     } else {
-      p.log.info("Skipped cargo-based iii-engine upgrade.");
+      p.log.info("Skipped iii-engine installer.");
     }
   } else {
-    p.log.warn("Cargo not found. Skipping iii-engine binary upgrade.");
+    p.log.warn("curl or sh not found. Skipping iii-engine installer.");
   }
 
   if (dockerBin) {
@@ -805,12 +812,26 @@ async function runImportJsonl(): Promise<void> {
   const port = getRestPort();
   const base = `http://localhost:${port}`;
 
+  let probeOk = false;
+  let probeDetail = "";
   try {
-    await fetch(`${base}/agentmemory/livez`, {
+    const probe = await fetch(`${base}/agentmemory/livez`, {
       signal: AbortSignal.timeout(2000),
     });
-  } catch {
-    p.log.error(`agentmemory is not running on port ${port}. Start it first.`);
+    probeOk = probe.ok;
+    if (!probeOk) {
+      const probeBody = await probe.text().catch(() => "");
+      probeDetail = `reachable but unhealthy (HTTP ${probe.status}${probeBody ? `: ${probeBody.slice(0, 200)}` : ""})`;
+    }
+  } catch (err) {
+    probeOk = false;
+    const msg = err instanceof Error ? err.message : String(err);
+    probeDetail = `unreachable (${msg})`;
+  }
+  if (!probeOk) {
+    p.log.error(
+      `agentmemory livez probe failed on port ${port}: ${probeDetail}. Start it with \`npx @agentmemory/agentmemory\` in another terminal, then re-run this command.`,
+    );
     process.exit(1);
   }
 
@@ -832,20 +853,49 @@ async function runImportJsonl(): Promise<void> {
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(120_000),
     });
-    const json = (await res.json()) as {
+    const text = await res.text();
+    let json: {
       success?: boolean;
       error?: string;
       imported?: number;
       sessionIds?: string[];
       observations?: number;
-    };
-    if (!res.ok || json.success === false) {
+    } = {};
+    if (text.length > 0) {
+      try {
+        json = JSON.parse(text);
+      } catch {
+        spinner.stop("failed");
+        p.log.error(
+          `server returned non-JSON response (HTTP ${res.status}): ${text.slice(0, 200)}`,
+        );
+        process.exit(1);
+      }
+    }
+    if (!res.ok || json.success !== true) {
       spinner.stop("failed");
-      p.log.error(json.error || `HTTP ${res.status}`);
+      const detail =
+        json.error ||
+        (text.length === 0
+          ? "empty response body"
+          : json.success === undefined
+            ? `HTTP ${res.status} (response missing success field)`
+            : `HTTP ${res.status}`);
+      if (res.status === 401) {
+        p.log.error(
+          `${detail}. Set AGENTMEMORY_SECRET to match the server's secret and re-run.`,
+        );
+      } else if (res.status === 404) {
+        p.log.error(
+          `${detail}. The running agentmemory server does not expose /agentmemory/replay/import-jsonl — upgrade to v0.8.13 or later.`,
+        );
+      } else {
+        p.log.error(detail);
+      }
       process.exit(1);
     }
     spinner.stop(
-      `imported ${json.imported} file(s), ${json.observations} observation(s) across ${json.sessionIds?.length || 0} session(s)`,
+      `imported ${json.imported ?? 0} file(s), ${json.observations ?? 0} observation(s) across ${json.sessionIds?.length || 0} session(s)`,
     );
     if (json.sessionIds && json.sessionIds.length > 0) {
       p.log.info(`View at http://localhost:${port + 2} → Replay tab`);
