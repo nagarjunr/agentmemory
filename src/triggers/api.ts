@@ -1279,6 +1279,69 @@ export function registerApiTriggers(
     config: { api_path: "/agentmemory/relations", http_method: "GET" },
   });
 
+  sdk.registerFunction("api::vision-search",
+    async (
+      req: ApiRequest<{
+        queryText?: string;
+        queryImageRef?: string;
+        queryImageBase64?: string;
+        topK?: number;
+        sessionId?: string;
+      }>,
+    ): Promise<Response> => {
+      const authErr = checkAuth(req, secret);
+      if (authErr) return authErr;
+      if (
+        !req.body?.queryText &&
+        !req.body?.queryImageRef &&
+        !req.body?.queryImageBase64
+      ) {
+        return {
+          status_code: 400,
+          body: { error: "queryText, queryImageRef, or queryImageBase64 required" },
+        };
+      }
+      const result = await sdk.trigger({ function_id: "mem::vision-search", payload: req.body });
+      const body = result as { success?: boolean; error?: string };
+      if (body?.success === false) {
+        return { status_code: body.error?.includes("disabled") ? 503 : 400, body };
+      }
+      return { status_code: 200, body: result };
+    },
+  );
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::vision-search",
+    config: { api_path: "/agentmemory/vision-search", http_method: "POST" },
+  });
+
+  sdk.registerFunction("api::vision-embed",
+    async (
+      req: ApiRequest<{
+        imageRef: string;
+        sessionId?: string;
+        observationId?: string;
+      }>,
+    ): Promise<Response> => {
+      const authErr = checkAuth(req, secret);
+      if (authErr) return authErr;
+      if (!req.body?.imageRef) {
+        return { status_code: 400, body: { error: "imageRef is required" } };
+      }
+      const result = await sdk.trigger({ function_id: "mem::vision-embed", payload: req.body });
+      const body = result as { success?: boolean; error?: string };
+      if (body?.success === false) {
+        return { status_code: body.error?.includes("disabled") ? 503 : 400, body };
+      }
+      return { status_code: 200, body: result };
+    },
+  );
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::vision-embed",
+    config: { api_path: "/agentmemory/vision-embed", http_method: "POST" },
+  });
+
   sdk.registerFunction("api::action-create",
     async (
       req: ApiRequest<{

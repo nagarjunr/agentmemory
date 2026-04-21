@@ -42,6 +42,7 @@ export const KV = {
   retentionScores: "mem:retention",
   accessLog: "mem:access",
   imageRefs: "mem:image-refs",
+  imageEmbeddings: "mem:image-embeddings",
 } as const;
 
 export const STREAM = {

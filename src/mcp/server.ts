@@ -275,6 +275,32 @@ export function registerMcpEndpoints(
             };
           }
 
+          case "memory_vision_search": {
+            const queryText = typeof args.queryText === "string" ? args.queryText : undefined;
+            const queryImageRef = typeof args.queryImageRef === "string" ? args.queryImageRef : undefined;
+            const queryImageBase64 = typeof args.queryImageBase64 === "string" ? args.queryImageBase64 : undefined;
+            if (!queryText && !queryImageRef && !queryImageBase64) {
+              return {
+                status_code: 400,
+                body: { error: "queryText, queryImageRef, or queryImageBase64 required" },
+              };
+            }
+            const topK = Math.max(1, Math.min(50, asNumber(args.topK, 10) ?? 10));
+            const sessionId = typeof args.sessionId === "string" ? args.sessionId : undefined;
+            const result = await sdk.trigger({
+              function_id: "mem::vision-search",
+              payload: { queryText, queryImageRef, queryImageBase64, topK, sessionId },
+            });
+            return {
+              status_code: 200,
+              body: {
+                content: [
+                  { type: "text", text: JSON.stringify(result, null, 2) },
+                ],
+              },
+            };
+          }
+
           case "memory_timeline": {
             if (typeof args.anchor !== "string" || !args.anchor.trim()) {
               return {

@@ -140,6 +140,13 @@ export function registerObserveFunction(
           const { incrementImageRef } = await import("./image-refs.js");
           await incrementImageRef(kv, filePath);
           sdk.triggerVoid("mem::disk-size-delta", { deltaBytes: bytesWritten });
+          if (process.env["AGENTMEMORY_IMAGE_EMBEDDINGS"] === "true") {
+            sdk.triggerVoid("mem::vision-embed", {
+              imageRef: filePath,
+              sessionId: payload.sessionId,
+              observationId: obsId,
+            });
+          }
         }
 
         try {

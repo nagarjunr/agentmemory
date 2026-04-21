@@ -208,6 +208,7 @@ export interface EmbeddingProvider {
   dimensions: number;
   embed(text: string): Promise<Float32Array>;
   embedBatch(texts: string[]): Promise<Float32Array[]>;
+  embedImage?(imageBase64OrPath: string): Promise<Float32Array>;
 }
 
 export interface MemoryRelation {

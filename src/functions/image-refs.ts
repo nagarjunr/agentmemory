@@ -22,6 +22,7 @@ export async function decrementImageRef(kv: StateKV, sdk: ISdk, filePath: string
     const current = await getImageRefCount(kv, filePath);
     if (current <= 1) {
       await kv.delete(KV.imageRefs, filePath);
+      await kv.delete(KV.imageEmbeddings, filePath).catch(() => {});
       const { deletedBytes } = await deleteImage(filePath);
       if (deletedBytes > 0) {
         sdk.triggerVoid("mem::disk-size-delta", { deltaBytes: -deletedBytes });

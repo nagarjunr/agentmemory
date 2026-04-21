@@ -6,6 +6,7 @@ import { VoyageEmbeddingProvider } from "./voyage.js";
 import { CohereEmbeddingProvider } from "./cohere.js";
 import { OpenRouterEmbeddingProvider } from "./openrouter.js";
 import { LocalEmbeddingProvider } from "./local.js";
+import { ClipEmbeddingProvider } from "./clip.js";
 
 export {
   GeminiEmbeddingProvider,
@@ -14,7 +15,17 @@ export {
   CohereEmbeddingProvider,
   OpenRouterEmbeddingProvider,
   LocalEmbeddingProvider,
+  ClipEmbeddingProvider,
 };
+
+let imageEmbeddingProvider: EmbeddingProvider | null = null;
+
+export function createImageEmbeddingProvider(): EmbeddingProvider | null {
+  if (process.env["AGENTMEMORY_IMAGE_EMBEDDINGS"] !== "true") return null;
+  if (imageEmbeddingProvider) return imageEmbeddingProvider;
+  imageEmbeddingProvider = new ClipEmbeddingProvider();
+  return imageEmbeddingProvider;
+}
 
 export function createEmbeddingProvider(): EmbeddingProvider | null {
   const detected = detectEmbeddingProvider();
