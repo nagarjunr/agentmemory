@@ -1281,6 +1281,7 @@
     function startDashboardAutoRefresh() {
       if (dashboardTimer) clearInterval(dashboardTimer);
       dashboardTimer = setInterval(function() {
+        if (pollTimer) return;
         if (state.activeTab === 'dashboard') refreshDashboard();
       }, 30000);
     }
@@ -2848,10 +2849,14 @@
       el.className = 'ws-status ' + cls;
     }
 
+    var WS_REPROBE_EVERY_TICKS = 6;
+
     function startPolling() {
       if (pollTimer) return;
       setWsStatus('polling · ' + (POLL_INTERVAL_MS / 1000) + 's', 'disconnected');
+      var tick = 0;
       pollTimer = setInterval(function() {
+        tick++;
         if (state.activeTab === 'dashboard') {
           state.dashboard.loaded = false;
           loadDashboard();
@@ -2864,6 +2869,15 @@
         } else if (state.activeTab === 'activity') {
           state.activity.loaded = false;
           loadActivity();
+        }
+        if (tick % WS_REPROBE_EVERY_TICKS === 0) {
+          var ws = state.ws;
+          if (!ws || ws.readyState !== WebSocket.OPEN) {
+            wsRetries = 0;
+            directFailures = 0;
+            directFailed = false;
+            connectWs();
+          }
         }
       }, POLL_INTERVAL_MS);
     }
