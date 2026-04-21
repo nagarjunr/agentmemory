@@ -21,6 +21,7 @@ export async function decrementImageRef(kv: StateKV, sdk: ISdk, filePath: string
   return withKeyedLock(`imgRef:${filePath}`, async () => {
     const current = await getImageRefCount(kv, filePath);
     if (current <= 1) {
+      await kv.delete(KV.imageEmbeddings, filePath);
       await kv.delete(KV.imageRefs, filePath);
       const { deletedBytes } = await deleteImage(filePath);
       if (deletedBytes > 0) {

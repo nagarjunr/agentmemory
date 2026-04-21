@@ -1279,6 +1279,73 @@ export function registerApiTriggers(
     config: { api_path: "/agentmemory/relations", http_method: "GET" },
   });
 
+  sdk.registerFunction("api::vision-search",
+    async (req: ApiRequest): Promise<Response> => {
+      const authErr = checkAuth(req, secret);
+      if (authErr) return authErr;
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const queryText = asNonEmptyString(body["queryText"]);
+      const queryImageRef = asNonEmptyString(body["queryImageRef"]);
+      const queryImageBase64 = asNonEmptyString(body["queryImageBase64"]);
+      const sessionId = asNonEmptyString(body["sessionId"]);
+      if (!queryText && !queryImageRef && !queryImageBase64) {
+        return {
+          status_code: 400,
+          body: { error: "queryText, queryImageRef, or queryImageBase64 required" },
+        };
+      }
+      const topKParsed = parseOptionalPositiveInt(body["topK"]);
+      if (topKParsed === null) {
+        return { status_code: 400, body: { error: "topK must be a positive integer" } };
+      }
+      const payload: Record<string, unknown> = {};
+      if (queryText) payload["queryText"] = queryText;
+      if (queryImageRef) payload["queryImageRef"] = queryImageRef;
+      if (queryImageBase64) payload["queryImageBase64"] = queryImageBase64;
+      if (sessionId) payload["sessionId"] = sessionId;
+      if (topKParsed !== undefined) payload["topK"] = Math.min(50, topKParsed);
+      const result = await sdk.trigger({ function_id: "mem::vision-search", payload });
+      const resp = result as { success?: boolean; error?: string };
+      if (resp?.success === false) {
+        return { status_code: resp.error?.includes("disabled") ? 503 : 400, body: resp };
+      }
+      return { status_code: 200, body: result };
+    },
+  );
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::vision-search",
+    config: { api_path: "/agentmemory/vision-search", http_method: "POST" },
+  });
+
+  sdk.registerFunction("api::vision-embed",
+    async (req: ApiRequest): Promise<Response> => {
+      const authErr = checkAuth(req, secret);
+      if (authErr) return authErr;
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const imageRef = asNonEmptyString(body["imageRef"]);
+      const sessionId = asNonEmptyString(body["sessionId"]);
+      const observationId = asNonEmptyString(body["observationId"]);
+      if (!imageRef) {
+        return { status_code: 400, body: { error: "imageRef is required" } };
+      }
+      const payload: Record<string, unknown> = { imageRef };
+      if (sessionId) payload["sessionId"] = sessionId;
+      if (observationId) payload["observationId"] = observationId;
+      const result = await sdk.trigger({ function_id: "mem::vision-embed", payload });
+      const resp = result as { success?: boolean; error?: string };
+      if (resp?.success === false) {
+        return { status_code: resp.error?.includes("disabled") ? 503 : 400, body: resp };
+      }
+      return { status_code: 200, body: result };
+    },
+  );
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::vision-embed",
+    config: { api_path: "/agentmemory/vision-embed", http_method: "POST" },
+  });
+
   sdk.registerFunction("api::action-create",
     async (
       req: ApiRequest<{

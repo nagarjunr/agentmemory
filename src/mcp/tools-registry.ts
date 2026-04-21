@@ -127,6 +127,21 @@ export const CORE_TOOLS: McpToolDef[] = [
     },
   },
   {
+    name: "memory_vision_search",
+    description:
+      "Cross-modal image search via CLIP embeddings. Pass queryText to find screenshots matching a description, or queryImageBase64/queryImageRef to find similar images. Requires AGENTMEMORY_IMAGE_EMBEDDINGS=true.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        queryText: { type: "string", description: "Text query (e.g. 'login form with error banner')" },
+        queryImageRef: { type: "string", description: "Absolute path to a stored image to match against" },
+        queryImageBase64: { type: "string", description: "Raw base64 image bytes or data URL" },
+        topK: { type: "number", description: "Max results (default 10, max 50)" },
+        sessionId: { type: "string", description: "Filter to a single session" },
+      },
+    },
+  },
+  {
     name: "memory_timeline",
     description: "Chronological observations around an anchor point.",
     inputSchema: {

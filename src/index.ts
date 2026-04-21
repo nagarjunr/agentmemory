@@ -16,6 +16,7 @@ import {
   createProvider,
   createFallbackProvider,
   createEmbeddingProvider,
+  createImageEmbeddingProvider,
 } from "./providers/index.js";
 import { StateKV } from "./state/kv.js";
 import { VectorIndex } from "./state/vector-index.js";
@@ -24,6 +25,7 @@ import { IndexPersistence } from "./state/index-persistence.js";
 import { registerPrivacyFunction } from "./functions/privacy.js";
 import { registerObserveFunction } from "./functions/observe.js";
 import { registerImageQuotaCleanup } from "./functions/image-quota-cleanup.js";
+import { registerVisionSearchFunctions } from "./functions/vision-search.js";
 import { registerDiskSizeManager } from "./functions/disk-size-manager.js";
 import { registerCompressFunction } from "./functions/compress.js";
 import {
@@ -111,6 +113,7 @@ async function main() {
       : createProvider(config.provider);
 
   const embeddingProvider = createEmbeddingProvider();
+  const imageEmbeddingProvider = createImageEmbeddingProvider();
 
   console.log(`[agentmemory] Starting worker v${VERSION}...`);
   console.log(`[agentmemory] Engine: ${config.engineUrl}`);
@@ -123,6 +126,11 @@ async function main() {
     );
   } else {
     console.log(`[agentmemory] Embedding provider: none (BM25-only mode)`);
+  }
+  if (imageEmbeddingProvider) {
+    console.log(
+      `[agentmemory] Image embedding provider: ${imageEmbeddingProvider.name} (${imageEmbeddingProvider.dimensions} dims) — vision-search active`,
+    );
   }
   console.log(
     `[agentmemory] REST API: http://localhost:${config.restPort}/agentmemory/*`,
@@ -154,6 +162,7 @@ async function main() {
   registerPrivacyFunction(sdk);
   registerObserveFunction(sdk, kv, dedupMap, config.maxObservationsPerSession);
   registerImageQuotaCleanup(sdk, kv);
+  registerVisionSearchFunctions(sdk, kv, imageEmbeddingProvider);
   registerDiskSizeManager(sdk, kv);
   registerCompressFunction(sdk, kv, provider, metricsStore);
   registerSearchFunction(sdk, kv);
