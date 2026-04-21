@@ -1344,7 +1344,8 @@ export function registerApiTriggers(
     type: "http",
     function_id: "api::vision-embed",
     config: { api_path: "/agentmemory/vision-embed", http_method: "POST" },
-=======
+  });
+
   sdk.registerFunction("api::slot-list", async (req: ApiRequest): Promise<Response> => {
     const authErr = checkAuth(req, secret);
     if (authErr) return authErr;
