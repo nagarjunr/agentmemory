@@ -1346,6 +1346,168 @@ export function registerApiTriggers(
     config: { api_path: "/agentmemory/vision-embed", http_method: "POST" },
   });
 
+  sdk.registerFunction("api::slot-list", async (req: ApiRequest): Promise<Response> => {
+    const authErr = checkAuth(req, secret);
+    if (authErr) return authErr;
+    const result = await sdk.trigger({ function_id: "mem::slot-list", payload: {} });
+    return { status_code: 200, body: result };
+  });
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::slot-list",
+    config: { api_path: "/agentmemory/slots", http_method: "GET" },
+  });
+
+  sdk.registerFunction("api::slot-get", async (req: ApiRequest): Promise<Response> => {
+    const authErr = checkAuth(req, secret);
+    if (authErr) return authErr;
+    const label = asNonEmptyString(req.query_params?.["label"]);
+    if (!label) return { status_code: 400, body: { error: "label query param required" } };
+    const result = await sdk.trigger({ function_id: "mem::slot-get", payload: { label } });
+    const resp = result as { success?: boolean; error?: string };
+    if (resp?.success === false) {
+      return { status_code: resp.error?.includes("not found") ? 404 : 400, body: resp };
+    }
+    return { status_code: 200, body: result };
+  });
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::slot-get",
+    config: { api_path: "/agentmemory/slot", http_method: "GET" },
+  });
+
+  sdk.registerFunction("api::slot-create", async (req: ApiRequest): Promise<Response> => {
+    const authErr = checkAuth(req, secret);
+    if (authErr) return authErr;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const label = asNonEmptyString(body["label"]);
+    if (!label) return { status_code: 400, body: { error: "label required" } };
+    // Reject malformed inputs instead of silently dropping them.
+    if (body["content"] !== undefined && typeof body["content"] !== "string") {
+      return { status_code: 400, body: { error: "content must be a string" } };
+    }
+    if (body["description"] !== undefined && typeof body["description"] !== "string") {
+      return { status_code: 400, body: { error: "description must be a string" } };
+    }
+    if (body["pinned"] !== undefined && typeof body["pinned"] !== "boolean") {
+      return { status_code: 400, body: { error: "pinned must be a boolean" } };
+    }
+    if (
+      body["scope"] !== undefined &&
+      body["scope"] !== "project" &&
+      body["scope"] !== "global"
+    ) {
+      return { status_code: 400, body: { error: "scope must be 'project' or 'global'" } };
+    }
+    const sizeLimit = parseOptionalPositiveInt(body["sizeLimit"]);
+    if (sizeLimit === null) {
+      return { status_code: 400, body: { error: "sizeLimit must be a positive integer" } };
+    }
+    if (sizeLimit !== undefined && sizeLimit > 20000) {
+      return { status_code: 400, body: { error: "sizeLimit must be <= 20000" } };
+    }
+    const payload: Record<string, unknown> = { label };
+    if (typeof body["content"] === "string") payload["content"] = body["content"];
+    if (typeof body["description"] === "string") payload["description"] = body["description"];
+    if (sizeLimit !== undefined) payload["sizeLimit"] = sizeLimit;
+    if (typeof body["pinned"] === "boolean") payload["pinned"] = body["pinned"];
+    if (body["scope"] === "project" || body["scope"] === "global") payload["scope"] = body["scope"];
+    const result = await sdk.trigger({ function_id: "mem::slot-create", payload });
+    const resp = result as { success?: boolean; error?: string };
+    if (resp?.success === false) {
+      return { status_code: resp.error?.includes("exists") ? 409 : 400, body: resp };
+    }
+    return { status_code: 201, body: result };
+  });
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::slot-create",
+    config: { api_path: "/agentmemory/slot", http_method: "POST" },
+  });
+
+  sdk.registerFunction("api::slot-append", async (req: ApiRequest): Promise<Response> => {
+    const authErr = checkAuth(req, secret);
+    if (authErr) return authErr;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const label = asNonEmptyString(body["label"]);
+    const text = typeof body["text"] === "string" ? body["text"] : null;
+    if (!label || !text) return { status_code: 400, body: { error: "label and text required" } };
+    const result = await sdk.trigger({ function_id: "mem::slot-append", payload: { label, text } });
+    const resp = result as { success?: boolean; error?: string };
+    if (resp?.success === false) {
+      const notFound = resp.error?.includes("not found");
+      const overLimit = resp.error?.includes("exceed");
+      return { status_code: notFound ? 404 : overLimit ? 413 : 400, body: resp };
+    }
+    return { status_code: 200, body: result };
+  });
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::slot-append",
+    config: { api_path: "/agentmemory/slot/append", http_method: "POST" },
+  });
+
+  sdk.registerFunction("api::slot-replace", async (req: ApiRequest): Promise<Response> => {
+    const authErr = checkAuth(req, secret);
+    if (authErr) return authErr;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const label = asNonEmptyString(body["label"]);
+    const content = body["content"];
+    if (!label || typeof content !== "string") {
+      return { status_code: 400, body: { error: "label and content (string) required" } };
+    }
+    const result = await sdk.trigger({ function_id: "mem::slot-replace", payload: { label, content } });
+    const resp = result as { success?: boolean; error?: string };
+    if (resp?.success === false) {
+      const notFound = resp.error?.includes("not found");
+      const overLimit = resp.error?.includes("exceed");
+      return { status_code: notFound ? 404 : overLimit ? 413 : 400, body: resp };
+    }
+    return { status_code: 200, body: result };
+  });
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::slot-replace",
+    config: { api_path: "/agentmemory/slot/replace", http_method: "POST" },
+  });
+
+  sdk.registerFunction("api::slot-delete", async (req: ApiRequest): Promise<Response> => {
+    const authErr = checkAuth(req, secret);
+    if (authErr) return authErr;
+    const label = asNonEmptyString(req.query_params?.["label"]);
+    if (!label) return { status_code: 400, body: { error: "label query param required" } };
+    const result = await sdk.trigger({ function_id: "mem::slot-delete", payload: { label } });
+    const resp = result as { success?: boolean; error?: string };
+    if (resp?.success === false) {
+      return { status_code: resp.error?.includes("not found") ? 404 : 400, body: resp };
+    }
+    return { status_code: 200, body: result };
+  });
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::slot-delete",
+    config: { api_path: "/agentmemory/slot", http_method: "DELETE" },
+  });
+
+  sdk.registerFunction("api::slot-reflect", async (req: ApiRequest): Promise<Response> => {
+    const authErr = checkAuth(req, secret);
+    if (authErr) return authErr;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const sessionId = asNonEmptyString(body["sessionId"]);
+    if (!sessionId) return { status_code: 400, body: { error: "sessionId required" } };
+    const maxObservations = parseOptionalPositiveInt(body["maxObservations"]);
+    if (maxObservations === null) return { status_code: 400, body: { error: "maxObservations must be a positive integer" } };
+    const payload: Record<string, unknown> = { sessionId };
+    if (maxObservations !== undefined) payload["maxObservations"] = maxObservations;
+    const result = await sdk.trigger({ function_id: "mem::slot-reflect", payload });
+    return { status_code: 200, body: result };
+  });
+  sdk.registerTrigger({
+    type: "http",
+    function_id: "api::slot-reflect",
+    config: { api_path: "/agentmemory/slot/reflect", http_method: "POST" },
+  });
+
   sdk.registerFunction("api::action-create",
     async (
       req: ApiRequest<{

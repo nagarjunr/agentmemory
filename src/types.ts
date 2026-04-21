@@ -203,6 +203,18 @@ export interface CircuitBreakerState {
   openedAt: number | null;
 }
 
+export interface MemorySlot {
+  label: string;
+  content: string;
+  sizeLimit: number;
+  description: string;
+  pinned: boolean;
+  readOnly: boolean;
+  scope: "project" | "global";
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface EmbeddingProvider {
   name: string;
   dimensions: number;
@@ -503,7 +515,12 @@ export interface AuditEntry {
     | "core_add"
     | "core_remove"
     | "auto_page"
-    | "vision_embed";
+    | "vision_embed"
+    | "slot_append"
+    | "slot_replace"
+    | "slot_create"
+    | "slot_delete"
+    | "slot_reflect";
   userId?: string;
   functionId: string;
   targetIds: string[];

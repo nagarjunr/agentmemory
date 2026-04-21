@@ -25,7 +25,7 @@
 <p align="center">
   <picture><source media="(prefers-color-scheme: dark)" srcset="assets/tags/light/stat-recall.svg"><img src="assets/tags/stat-recall.svg" alt="95.2% retrieval R@5" height="38" /></picture>
   <picture><source media="(prefers-color-scheme: dark)" srcset="assets/tags/light/stat-tokens.svg"><img src="assets/tags/stat-tokens.svg" alt="92% fewer tokens" height="38" /></picture>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/tags/light/stat-tools.svg"><img src="assets/tags/stat-tools.svg" alt="45 MCP tools" height="38" /></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/tags/light/stat-tools.svg"><img src="assets/tags/stat-tools.svg" alt="51 MCP tools" height="38" /></picture>
   <picture><source media="(prefers-color-scheme: dark)" srcset="assets/tags/light/stat-hooks.svg"><img src="assets/tags/stat-hooks.svg" alt="12 auto hooks" height="38" /></picture>
   <picture><source media="(prefers-color-scheme: dark)" srcset="assets/tags/light/stat-deps.svg"><img src="assets/tags/stat-deps.svg" alt="0 external DBs" height="38" /></picture>
   <picture><source media="(prefers-color-scheme: dark)" srcset="assets/tags/light/stat-tests.svg"><img src="assets/tags/stat-tests.svg" alt="654 tests passing" height="38" /></picture>
@@ -334,14 +334,14 @@ Implementation details live in `src/cli.ts` (see `runUpgrade` around the `src/cl
 ### Claude Code (one block, paste it)
 
 ```
-Install agentmemory: run `npx @agentmemory/agentmemory` in a separate terminal to start the memory server. Then run `/plugin marketplace add rohitg00/agentmemory` and `/plugin install agentmemory` — the plugin registers all 12 hooks, 4 skills, AND auto-wires the `@agentmemory/mcp` stdio server via its `.mcp.json`, so you get 45 MCP tools (memory_smart_search, memory_save, memory_sessions, memory_governance_delete, etc.) without any extra config step. Verify with `curl http://localhost:3111/agentmemory/health`. The real-time viewer is at http://localhost:3113.
+Install agentmemory: run `npx @agentmemory/agentmemory` in a separate terminal to start the memory server. Then run `/plugin marketplace add rohitg00/agentmemory` and `/plugin install agentmemory` — the plugin registers all 12 hooks, 4 skills, AND auto-wires the `@agentmemory/mcp` stdio server via its `.mcp.json`, so you get 51 MCP tools (memory_smart_search, memory_save, memory_sessions, memory_governance_delete, etc.) without any extra config step. Verify with `curl http://localhost:3111/agentmemory/health`. The real-time viewer is at http://localhost:3113.
 ```
 
 <details>
 <summary><b>OpenClaw (paste this prompt)</b></summary>
 
 ```
-Install agentmemory for OpenClaw. Run `npx @agentmemory/agentmemory` in a separate terminal to start the memory server on localhost:3111. Then add this to my OpenClaw MCP config so agentmemory is available with all 43 memory tools:
+Install agentmemory for OpenClaw. Run `npx @agentmemory/agentmemory` in a separate terminal to start the memory server on localhost:3111. Then add this to my OpenClaw MCP config so agentmemory is available with all 50 memory tools:
 
 {
   "mcpServers": {
@@ -363,7 +363,7 @@ Full guide: [`integrations/openclaw/`](integrations/openclaw/)
 <summary><b>Hermes Agent (paste this prompt)</b></summary>
 
 ```
-Install agentmemory for Hermes. Run `npx @agentmemory/agentmemory` in a separate terminal to start the memory server on localhost:3111. Then add this to ~/.hermes/config.yaml so Hermes can use agentmemory as an MCP server with all 43 memory tools:
+Install agentmemory for Hermes. Run `npx @agentmemory/agentmemory` in a separate terminal to start the memory server on localhost:3111. Then add this to ~/.hermes/config.yaml so Hermes can use agentmemory as an MCP server with all 50 memory tools:
 
 mcp_servers:
   agentmemory:
@@ -593,9 +593,9 @@ npm install @xenova/transformers
 
 <h2 id="mcp-server"><picture><source media="(prefers-color-scheme: dark)" srcset="assets/tags/light/section-mcp.svg"><img src="assets/tags/section-mcp.svg" alt="MCP Server" height="32" /></picture></h2>
 
-45 tools, 6 resources, 3 prompts, and 4 skills — the most comprehensive MCP memory toolkit for any agent.
+51 tools, 6 resources, 3 prompts, and 4 skills — the most comprehensive MCP memory toolkit for any agent.
 
-### 44 Tools
+### 50 Tools
 
 <details>
 <summary>Core tools (always available)</summary>
@@ -617,7 +617,7 @@ npm install @xenova/transformers
 </details>
 
 <details>
-<summary>Extended tools (44 total — set AGENTMEMORY_TOOLS=all)</summary>
+<summary>Extended tools (50 total — set AGENTMEMORY_TOOLS=all)</summary>
 
 | Tool | Description |
 |------|-------------|
@@ -816,17 +816,23 @@ Create `~/.agentmemory/.env`:
                                    # LLM provider to compress the
                                    # observation — expect significant
                                    # token spend on active sessions.
-# AGENTMEMORY_IMAGE_EMBEDDINGS=false # OFF by default. When on, loads
-                                   # CLIP ViT-B/32 (512d) via
-                                   # @xenova/transformers and embeds
-                                   # every captured screenshot into
-                                   # mem:image-embeddings. Enables
-                                   # memory_vision_search (cross-modal:
-                                   # text→image or image→image cosine).
-                                   # Model downloads (~350 MB) on first
-                                   # use — lazy. Observe pipeline fires
-                                   # mem::vision-embed via triggerVoid,
-                                   # so capture latency is unchanged.
+# AGENTMEMORY_SLOTS=false          # OFF by default. Editable pinned
+                                   # memory slots — persona,
+                                   # user_preferences, tool_guidelines,
+                                   # project_context, guidance,
+                                   # pending_items, session_patterns,
+                                   # self_notes. Size-limited; agent
+                                   # edits via memory_slot_* tools.
+                                   # Pinned slots addressable for
+                                   # SessionStart injection.
+# AGENTMEMORY_REFLECT=false        # OFF by default. Requires SLOTS=on.
+                                   # Stop hook fires mem::slot-reflect:
+                                   # scans recent observations, auto-
+                                   # appends TODOs to pending_items,
+                                   # counts patterns in
+                                   # session_patterns, records touched
+                                   # files in project_context. Fire-
+                                   # and-forget; does not block.
 # AGENTMEMORY_INJECT_CONTEXT=false # OFF by default (#143). When on:
                                    # - SessionStart may inject ~1-2K
                                    #   chars of project context into
@@ -854,7 +860,7 @@ Create `~/.agentmemory/.env`:
 # USER_ID=
 # TEAM_MODE=private
 
-# Tool visibility: "core" (8 tools) or "all" (45 tools)
+# Tool visibility: "core" (8 tools) or "all" (51 tools)
 # AGENTMEMORY_TOOLS=core
 ```
 
@@ -895,7 +901,7 @@ Full endpoint list: [`src/triggers/api.ts`](src/triggers/api.ts)
 
 Built on [iii-engine](https://iii.dev)'s three primitives — no Express, no Postgres, no Redis.
 
-**118 source files · ~21,800 LOC · 646 tests · 123 functions · 34 KV scopes**
+**118 source files · ~21,800 LOC · 800 tests · 123 functions · 34 KV scopes**
 
 <details>
 <summary>What iii-engine replaces</summary>
@@ -915,7 +921,7 @@ Built on [iii-engine](https://iii.dev)'s three primitives — no Express, no Pos
 ```bash
 npm run dev               # Hot reload
 npm run build             # Production build
-npm test                  # 646 tests (~1.7s)
+npm test                  # 800 tests (~1.7s)
 npm run test:integration  # API tests (requires running services)
 ```
 

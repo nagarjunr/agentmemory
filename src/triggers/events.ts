@@ -2,6 +2,8 @@ import { TriggerAction, type ISdk } from "iii-sdk";
 import type { HookPayload, Session } from "../types.js";
 import { KV, STREAM } from "../state/schema.js";
 import { StateKV } from "../state/kv.js";
+import { isReflectEnabled } from "../functions/slots.js";
+import { logger } from "../logger.js";
 
 export function registerEventTriggers(sdk: ISdk, kv: StateKV): void {
   sdk.registerFunction(
@@ -41,9 +43,20 @@ export function registerEventTriggers(sdk: ISdk, kv: StateKV): void {
     config: { topic: "agentmemory.observation" },
   });
 
-  sdk.registerFunction("event::session::stopped", async (data: { sessionId: string }) =>
-    sdk.trigger({ function_id: "mem::summarize", payload: data }),
-  );
+  sdk.registerFunction("event::session::stopped", async (data: { sessionId: string }) => {
+    const summary = await sdk.trigger({ function_id: "mem::summarize", payload: data });
+    if (isReflectEnabled()) {
+      try {
+        sdk.triggerVoid("mem::slot-reflect", { sessionId: data.sessionId });
+      } catch (err) {
+        logger.warn("slot-reflect triggerVoid failed", {
+          sessionId: data.sessionId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    return summary;
+  });
   sdk.registerTrigger({
     type: "durable:subscriber",
     function_id: "event::session::stopped",

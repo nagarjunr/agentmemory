@@ -43,6 +43,8 @@ export const KV = {
   accessLog: "mem:access",
   imageRefs: "mem:image-refs",
   imageEmbeddings: "mem:image-embeddings",
+  slots: "mem:slots",
+  globalSlots: "mem:slots:global",
 } as const;
 
 export const STREAM = {

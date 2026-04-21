@@ -820,6 +820,78 @@ export const V073_TOOLS: McpToolDef[] = [
   },
 ];
 
+export const V010_SLOTS_TOOLS: McpToolDef[] = [
+  {
+    name: "memory_slot_list",
+    description:
+      "List all memory slots (pinned + project + global). Slots are editable, size-limited memory units the agent can read and modify across sessions.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "memory_slot_get",
+    description: "Read a single slot by label.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        label: { type: "string", description: "Slot label (e.g. 'persona', 'pending_items')" },
+      },
+      required: ["label"],
+    },
+  },
+  {
+    name: "memory_slot_create",
+    description: "Create a new slot. Reject if a slot with the same label already exists.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        label: { type: "string", description: "Slot label — lowercase, starts with letter, [a-z0-9_]" },
+        content: { type: "string", description: "Initial content (default empty)" },
+        sizeLimit: { type: "number", description: "Max chars (default 2000, hard cap 20000)" },
+        description: { type: "string", description: "What this slot is for" },
+        pinned: { type: "string", description: "'false' to exclude from context injection; default true" },
+        scope: { type: "string", description: "'project' (default) or 'global' (shared across projects)" },
+      },
+      required: ["label"],
+    },
+  },
+  {
+    name: "memory_slot_append",
+    description:
+      "Append text to an existing slot. Fails with 413 if the append would exceed the slot's sizeLimit — agent must compact via memory_slot_replace first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        label: { type: "string", description: "Slot label" },
+        text: { type: "string", description: "Text to append" },
+      },
+      required: ["label", "text"],
+    },
+  },
+  {
+    name: "memory_slot_replace",
+    description: "Replace slot content in place. Fails if content exceeds sizeLimit.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        label: { type: "string", description: "Slot label" },
+        content: { type: "string", description: "New full content" },
+      },
+      required: ["label", "content"],
+    },
+  },
+  {
+    name: "memory_slot_delete",
+    description: "Delete a slot. Seeded default slots can be deleted unless marked readOnly.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        label: { type: "string", description: "Slot label" },
+      },
+      required: ["label"],
+    },
+  },
+];
+
 const ESSENTIAL_TOOLS = new Set([
   "memory_save",
   "memory_recall",
@@ -832,7 +904,16 @@ const ESSENTIAL_TOOLS = new Set([
 ]);
 
 export function getAllTools(): McpToolDef[] {
-  return [...CORE_TOOLS, ...V040_TOOLS, ...V050_TOOLS, ...V051_TOOLS, ...V061_TOOLS, ...V070_TOOLS, ...V073_TOOLS];
+  return [
+    ...CORE_TOOLS,
+    ...V040_TOOLS,
+    ...V050_TOOLS,
+    ...V051_TOOLS,
+    ...V061_TOOLS,
+    ...V070_TOOLS,
+    ...V073_TOOLS,
+    ...V010_SLOTS_TOOLS,
+  ];
 }
 
 export function getVisibleTools(): McpToolDef[] {

@@ -26,6 +26,7 @@ import { registerPrivacyFunction } from "./functions/privacy.js";
 import { registerObserveFunction } from "./functions/observe.js";
 import { registerImageQuotaCleanup } from "./functions/image-quota-cleanup.js";
 import { registerVisionSearchFunctions } from "./functions/vision-search.js";
+import { registerSlotsFunctions, isSlotsEnabled, isReflectEnabled } from "./functions/slots.js";
 import { registerDiskSizeManager } from "./functions/disk-size-manager.js";
 import { registerCompressFunction } from "./functions/compress.js";
 import {
@@ -84,6 +85,7 @@ import { registerReplayFunctions } from "./functions/replay.js";
 import { registerApiTriggers } from "./triggers/api.js";
 import { registerEventTriggers } from "./triggers/events.js";
 import { registerMcpEndpoints } from "./mcp/server.js";
+import { getAllTools } from "./mcp/tools-registry.js";
 import { startViewerServer } from "./viewer/server.js";
 import { MetricsStore } from "./eval/metrics-store.js";
 import { DedupMap } from "./functions/dedup.js";
@@ -163,6 +165,9 @@ async function main() {
   registerObserveFunction(sdk, kv, dedupMap, config.maxObservationsPerSession);
   registerImageQuotaCleanup(sdk, kv);
   registerVisionSearchFunctions(sdk, kv, imageEmbeddingProvider);
+  if (isSlotsEnabled()) {
+    registerSlotsFunctions(sdk, kv);
+  }
   registerDiskSizeManager(sdk, kv);
   registerCompressFunction(sdk, kv, provider, metricsStore);
   registerSearchFunction(sdk, kv);
@@ -262,6 +267,11 @@ async function main() {
   console.log(
     `[agentmemory] Orchestration layer: actions, frontier, leases, routines, signals, checkpoints, flow-compress, mesh, branch-aware, sentinels, sketches, crystallize, diagnostics, facets`,
   );
+  if (isSlotsEnabled()) {
+    console.log(
+      `[agentmemory] Slots: enabled (pinned editable memory). Reflect on Stop hook: ${isReflectEnabled() ? "on" : "off"}`,
+    );
+  }
 
   const snapshotConfig = loadSnapshotConfig();
   if (snapshotConfig.enabled) {
@@ -331,7 +341,7 @@ async function main() {
     `[agentmemory] Ready. ${embeddingProvider ? "Triple-stream (BM25+Vector+Graph)" : "BM25+Graph"} search active.`,
   );
   console.log(
-    `[agentmemory] Endpoints: 107 REST + 44 MCP tools + 6 MCP resources + 3 MCP prompts`,
+    `[agentmemory] Endpoints: 107 REST + ${getAllTools().length} MCP tools + 6 MCP resources + 3 MCP prompts`,
   );
 
   const viewerPort = config.restPort + 2;

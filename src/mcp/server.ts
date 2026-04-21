@@ -1134,6 +1134,76 @@ export function registerMcpEndpoints(
             return { status_code: 200, body: { content: [{ type: "text", text: JSON.stringify(obsidianResult, null, 2) }] } };
           }
 
+          case "memory_slot_list": {
+            const result = await sdk.trigger({ function_id: "mem::slot-list", payload: {} });
+            return {
+              status_code: 200,
+              body: { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] },
+            };
+          }
+
+          case "memory_slot_get": {
+            const label = asNonEmptyString(args.label);
+            if (!label) return { status_code: 400, body: { error: "label required" } };
+            const result = await sdk.trigger({ function_id: "mem::slot-get", payload: { label } });
+            return {
+              status_code: 200,
+              body: { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] },
+            };
+          }
+
+          case "memory_slot_create": {
+            const label = asNonEmptyString(args.label);
+            if (!label) return { status_code: 400, body: { error: "label required" } };
+            const payload: Record<string, unknown> = { label };
+            if (typeof args.content === "string") payload.content = args.content;
+            if (typeof args.description === "string") payload.description = args.description;
+            if (typeof args.sizeLimit === "number") payload.sizeLimit = args.sizeLimit;
+            // Accept boolean and string-boolean forms; MCP clients bind either
+            // depending on their JSON schema wrapper.
+            if (args.pinned === false || args.pinned === "false") payload.pinned = false;
+            else if (args.pinned === true || args.pinned === "true") payload.pinned = true;
+            if (args.scope === "global" || args.scope === "project") payload.scope = args.scope;
+            const result = await sdk.trigger({ function_id: "mem::slot-create", payload });
+            return {
+              status_code: 200,
+              body: { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] },
+            };
+          }
+
+          case "memory_slot_append": {
+            const label = asNonEmptyString(args.label);
+            const text = typeof args.text === "string" ? args.text : null;
+            if (!label || !text) return { status_code: 400, body: { error: "label and text required" } };
+            const result = await sdk.trigger({ function_id: "mem::slot-append", payload: { label, text } });
+            return {
+              status_code: 200,
+              body: { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] },
+            };
+          }
+
+          case "memory_slot_replace": {
+            const label = asNonEmptyString(args.label);
+            if (!label || typeof args.content !== "string") {
+              return { status_code: 400, body: { error: "label and content (string) required" } };
+            }
+            const result = await sdk.trigger({ function_id: "mem::slot-replace", payload: { label, content: args.content } });
+            return {
+              status_code: 200,
+              body: { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] },
+            };
+          }
+
+          case "memory_slot_delete": {
+            const label = asNonEmptyString(args.label);
+            if (!label) return { status_code: 400, body: { error: "label required" } };
+            const result = await sdk.trigger({ function_id: "mem::slot-delete", payload: { label } });
+            return {
+              status_code: 200,
+              body: { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] },
+            };
+          }
+
           default:
             return {
               status_code: 400,
