@@ -26,7 +26,9 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       # Two-step install: generate a lockfile in-runner with
-      # --package-lock-only, then install from it with `npm ci`.
+      # --package-lock-only, then install from it with `npm ci`. Gives a
+      # single deterministic dep graph across build / test / publish
+      # within one job — important because publish uses `--provenance`.
       # Lockfiles are gitignored at the repo level.
       - run: npm install --package-lock-only --legacy-peer-deps --no-audit --no-fund
       - run: npm ci --legacy-peer-deps --no-audit --no-fund
