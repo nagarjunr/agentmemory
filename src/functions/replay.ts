@@ -10,7 +10,7 @@ import type {
   Session,
 } from "../types.js";
 import type { StateKV } from "../state/kv.js";
-import { KV, generateId } from "../state/schema.js";
+import { KV, generateId, fingerprintId } from "../state/schema.js";
 import { parseJsonlText } from "../replay/jsonl-parser.js";
 import { projectTimeline, type Timeline } from "../replay/timeline.js";
 import { safeAudit } from "./audit.js";
@@ -110,28 +110,54 @@ async function deriveCrystalAndLessons(
   const lessonEntries = Array.from(lessonMatches.values()).slice(0, 20);
   const lessonIds: string[] = [];
   for (const content of lessonEntries) {
-    const lessonId = generateId("lesson");
-    const lesson: Lesson = {
-      id: lessonId,
-      content,
-      context: firstPrompt || project,
-      confidence: 0.4,
-      reinforcements: 0,
-      source: "consolidation",
-      sourceIds: [sessionId],
-      project,
-      tags: ["auto-import"],
-      createdAt,
-      updatedAt: createdAt,
-      decayRate: 0.05,
-    };
+    // Content-addressed ID so re-importing the same JSONL does not
+    // duplicate lessons. fingerprintId hashes the normalized content,
+    // giving a stable lesson_xxx for identical text.
+    const lessonId = fingerprintId("lesson", content.trim().toLowerCase());
     try {
-      await kv.set(KV.lessons, lessonId, lesson);
+      const existing = await kv.get<Lesson>(KV.lessons, lessonId);
+      if (existing) {
+        const existingSources = existing.sourceIds || [];
+        const mergedSources = existingSources.includes(sessionId)
+          ? existingSources
+          : [...existingSources, sessionId];
+        const existingTags = existing.tags || [];
+        const mergedTags = existingTags.includes("auto-import")
+          ? existingTags
+          : [...existingTags, "auto-import"];
+        const merged: Lesson = {
+          ...existing,
+          sourceIds: mergedSources,
+          tags: mergedTags,
+          reinforcements: (existing.reinforcements || 0) + 1,
+          updatedAt: createdAt,
+          lastReinforcedAt: createdAt,
+        };
+        await kv.set(KV.lessons, lessonId, merged);
+      } else {
+        const lesson: Lesson = {
+          id: lessonId,
+          content,
+          context: firstPrompt || project,
+          confidence: 0.4,
+          reinforcements: 0,
+          source: "consolidation",
+          sourceIds: [sessionId],
+          project,
+          tags: ["auto-import"],
+          createdAt,
+          updatedAt: createdAt,
+          decayRate: 0.05,
+        };
+        await kv.set(KV.lessons, lessonId, lesson);
+      }
       lessonIds.push(lessonId);
     } catch {}
   }
 
-  const crystalId = generateId("crystal");
+  // Content-addressed on sessionId so re-importing the same session
+  // upserts the crystal in place instead of creating a new one.
+  const crystalId = fingerprintId("crystal", sessionId);
   const narrativePreview = firstPrompt
     ? firstPrompt.slice(0, 300)
     : compressed
@@ -141,18 +167,19 @@ async function deriveCrystalAndLessons(
         .join(" · ")
         .slice(0, 300);
 
-  const crystal: Crystal = {
-    id: crystalId,
-    narrative: narrativePreview || `Session ${sessionId.slice(0, 12)} (${rawObs.length} observations)`,
-    keyOutcomes: Array.from(tools).slice(0, 8),
-    filesAffected: Array.from(files).slice(0, 20),
-    lessons: lessonIds,
-    sourceActionIds: [],
-    sessionId,
-    project,
-    createdAt,
-  };
   try {
+    const existingCrystal = await kv.get<Crystal>(KV.crystals, crystalId);
+    const crystal: Crystal = {
+      id: crystalId,
+      narrative: narrativePreview || `Session ${sessionId.slice(0, 12)} (${rawObs.length} observations)`,
+      keyOutcomes: Array.from(tools).slice(0, 8),
+      filesAffected: Array.from(files).slice(0, 20),
+      lessons: lessonIds,
+      sourceActionIds: existingCrystal?.sourceActionIds ?? [],
+      sessionId,
+      project,
+      createdAt: existingCrystal?.createdAt ?? createdAt,
+    };
     await kv.set(KV.crystals, crystalId, crystal);
   } catch {}
 }

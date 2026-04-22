@@ -54,11 +54,19 @@ export function registerImageQuotaCleanup(sdk: ISdk, kv: StateKV): void {
           }
 
           await withKeyedLock(`imgRef:${f.filePath}`, async () => {
-            let refCount = 0;
+            let refCount: number;
             try {
               refCount = await getImageRefCount(kv, f.filePath);
             } catch (err) {
-              logger.error("Failed to read refCount", { filePath: f.filePath, error: err instanceof Error ? err.message : String(err) });
+              // Fail-closed: if we cannot determine refCount we must NOT
+              // delete the image. Previously we let refCount fall through
+              // to the default 0 and evicted, which risks deleting
+              // still-referenced images on transient KV errors.
+              logger.error("Failed to read refCount; skipping eviction", {
+                filePath: f.filePath,
+                error: err instanceof Error ? err.message : String(err),
+              });
+              return;
             }
 
             if (refCount > 0) {

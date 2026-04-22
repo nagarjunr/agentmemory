@@ -2687,7 +2687,21 @@
 
       if (search) {
         items = items.filter(function(c) {
-          return ((c.narrative || '') + ' ' + (c.keyOutcomes || []).join(' ') + ' ' + (c.lessons || []).join(' ')).toLowerCase().indexOf(search) >= 0;
+          var lessonText = (c.lessons || [])
+            .map(function(lid) {
+              var l = lessonMap[lid];
+              return l && typeof l.content === 'string' ? l.content : lid;
+            })
+            .join(' ');
+          var filesText = (c.filesAffected || []).join(' ');
+          var haystack = [
+            c.narrative || '',
+            (c.keyOutcomes || []).join(' '),
+            lessonText,
+            filesText,
+            c.project || '',
+          ].join(' ').toLowerCase();
+          return haystack.indexOf(search) >= 0;
         });
       }
 

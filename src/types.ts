@@ -851,3 +851,15 @@ export interface DecayConfig {
     cold: number;
   };
 }
+
+/**
+ * KV.state scope — long-lived system counters + flags keyed by string.
+ * Keep keys/types in sync with the state-scope callers (e.g.,
+ * disk-size-manager) so TypeScript enforces consistent value shapes
+ * instead of every caller using ad-hoc `<number>` generics.
+ */
+export interface StateScope {
+  "system:currentDiskSize": number;
+}
+
+export type StateScopeKey = keyof StateScope;

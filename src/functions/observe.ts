@@ -203,12 +203,15 @@ export function registerObserveFunction(
               value: (session.observationCount || 0) + 1,
             },
           ];
-          if (!session.firstPrompt && raw.userPrompt) {
-            updates.push({
-              type: "set",
-              path: "firstPrompt",
-              value: raw.userPrompt.replace(/\s+/g, " ").trim().slice(0, 200),
-            });
+          if (!session.firstPrompt && typeof raw.userPrompt === "string") {
+            const trimmed = raw.userPrompt.replace(/\s+/g, " ").trim();
+            if (trimmed.length > 0) {
+              updates.push({
+                type: "set",
+                path: "firstPrompt",
+                value: trimmed.slice(0, 200),
+              });
+            }
           }
           await kv.update(KV.sessions, payload.sessionId, updates);
         }
