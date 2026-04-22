@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { isSdkChildContext } from "./sdk-guard.js";
+
 // Session-start hook.
 //
 // Always registers the session for observation tracking (so memories
@@ -30,6 +32,8 @@ async function main() {
   } catch {
     return;
   }
+
+  if (isSdkChildContext(data)) return;
 
   const sessionId =
     (data.session_id as string) || `ses_${Date.now().toString(36)}`;

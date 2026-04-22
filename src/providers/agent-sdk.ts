@@ -12,6 +12,19 @@ export class AgentSDKProvider implements MemoryProvider {
   }
 
   private async query(systemPrompt: string, userPrompt: string): Promise<string> {
+    if (process.env.AGENTMEMORY_SDK_CHILD === "1") {
+      // We are already running inside a Claude Agent SDK-spawned session.
+      // Spawning another one would let its plugin-hook-driven Stop loop
+      // re-enter /agentmemory/summarize and cause unbounded recursion
+      // (#149 follow-up). Degrade to empty string so callers short-circuit.
+      return ""
+    }
+
+    // Mark any child process / SDK session spawned from here as a SDK
+    // child. agentmemory hook scripts check this marker and skip their
+    // REST calls to break the recursion loop.
+    process.env.AGENTMEMORY_SDK_CHILD = "1"
+
     const { query } = await import('@anthropic-ai/claude-agent-sdk')
 
     const messages = query({

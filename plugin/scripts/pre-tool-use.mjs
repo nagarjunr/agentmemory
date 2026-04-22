@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { t as isSdkChildContext } from "./sdk-guard-DI1NUOS9.mjs";
+
 //#region src/hooks/pre-tool-use.ts
 const INJECT_CONTEXT = process.env["AGENTMEMORY_INJECT_CONTEXT"] === "true";
 const REST_URL = process.env["AGENTMEMORY_URL"] || "http://localhost:3111";
@@ -18,6 +20,7 @@ async function main() {
 	} catch {
 		return;
 	}
+	if (isSdkChildContext(data)) return;
 	const toolName = data.tool_name;
 	if (!toolName) return;
 	if (![

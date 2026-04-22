@@ -41,11 +41,15 @@ function loadEnvFile(): Record<string, string> {
   return vars;
 }
 
+function hasRealValue(v: string | undefined): v is string {
+  return typeof v === "string" && v.trim().length > 0;
+}
+
 function detectProvider(env: Record<string, string>): ProviderConfig {
   const maxTokens = parseInt(env["MAX_TOKENS"] || "4096", 10);
 
   // MiniMax: Anthropic-compatible API, requires raw fetch to avoid SDK stainless headers
-  if (env["MINIMAX_API_KEY"]) {
+  if (hasRealValue(env["MINIMAX_API_KEY"])) {
     return {
       provider: "minimax",
       model: env["MINIMAX_MODEL"] || "MiniMax-M2.7",
@@ -53,7 +57,7 @@ function detectProvider(env: Record<string, string>): ProviderConfig {
     };
   }
 
-  if (env["ANTHROPIC_API_KEY"]) {
+  if (hasRealValue(env["ANTHROPIC_API_KEY"])) {
     return {
       provider: "anthropic",
       model: env["ANTHROPIC_MODEL"] || "claude-sonnet-4-20250514",
@@ -61,8 +65,8 @@ function detectProvider(env: Record<string, string>): ProviderConfig {
       baseURL: env["ANTHROPIC_BASE_URL"],
     };
   }
-  if (env["GEMINI_API_KEY"] || env["GOOGLE_API_KEY"]) {
-    if (!env["GEMINI_API_KEY"] && env["GOOGLE_API_KEY"]) {
+  if (hasRealValue(env["GEMINI_API_KEY"]) || hasRealValue(env["GOOGLE_API_KEY"])) {
+    if (!hasRealValue(env["GEMINI_API_KEY"]) && hasRealValue(env["GOOGLE_API_KEY"])) {
       process.stderr.write(
         "[agentmemory] GOOGLE_API_KEY detected — treating as GEMINI_API_KEY. " +
           "Set GEMINI_API_KEY in ~/.agentmemory/.env to silence this warning.\n",
@@ -74,22 +78,40 @@ function detectProvider(env: Record<string, string>): ProviderConfig {
       maxTokens,
     };
   }
-  if (env["OPENROUTER_API_KEY"]) {
+  if (hasRealValue(env["OPENROUTER_API_KEY"])) {
     return {
       provider: "openrouter",
       model: env["OPENROUTER_MODEL"] || "anthropic/claude-sonnet-4-20250514",
       maxTokens,
     };
   }
-  if (env["AGENTMEMORY_AUTO_COMPRESS"] === "true") {
+
+  const allowAgentSdk = env["AGENTMEMORY_ALLOW_AGENT_SDK"] === "true";
+  if (!allowAgentSdk) {
     process.stderr.write(
-      "[agentmemory] WARNING: AGENTMEMORY_AUTO_COMPRESS=true but no LLM provider key found " +
-        "(GEMINI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY). " +
-        "Falling back to agent-sdk which shares Claude Code's API quota — " +
-        "this can exhaust a Pro subscription during heavy sessions. " +
-        "Set an API key in ~/.agentmemory/.env to avoid rate limits (#149).\n",
+      "[agentmemory] No LLM provider key found " +
+        "(ANTHROPIC_API_KEY, GEMINI_API_KEY, OPENROUTER_API_KEY, MINIMAX_API_KEY). " +
+        "LLM-backed compression and summarization are DISABLED — using no-op provider. " +
+        "This is the safe default: the agent-sdk fallback used to spawn Claude Agent SDK " +
+        "child sessions which inherit Claude Code's plugin hooks and cause infinite Stop-hook " +
+        "recursion (#149 follow-up). To opt in to the agent-sdk fallback anyway, set both " +
+        "AGENTMEMORY_AUTO_COMPRESS=true AND AGENTMEMORY_ALLOW_AGENT_SDK=true — but be aware " +
+        "it will burn your Claude Pro allocation and may still recurse if you use it from " +
+        "inside Claude Code itself.\n",
     );
+    return {
+      provider: "noop",
+      model: "noop",
+      maxTokens,
+    };
   }
+
+  process.stderr.write(
+    "[agentmemory] WARNING: agent-sdk fallback enabled via AGENTMEMORY_ALLOW_AGENT_SDK=true. " +
+      "This spawns @anthropic-ai/claude-agent-sdk child sessions that can trigger the Stop-hook " +
+      "recursion loop (#149 follow-up). A SDK-child env marker is set to block re-entry, " +
+      "but prefer setting a real API key in ~/.agentmemory/.env instead.\n",
+  );
   return {
     provider: "agent-sdk",
     model: "claude-sonnet-4-20250514",

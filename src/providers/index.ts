@@ -6,6 +6,7 @@ import type {
 import { AgentSDKProvider } from "./agent-sdk.js";
 import { AnthropicProvider } from "./anthropic.js";
 import { MinimaxProvider } from "./minimax.js";
+import { NoopProvider } from "./noop.js";
 import { OpenRouterProvider } from "./openrouter.js";
 import { ResilientProvider } from "./resilient.js";
 import { FallbackChainProvider } from "./fallback-chain.js";
@@ -93,6 +94,8 @@ function createBaseProvider(config: ProviderConfig): MemoryProvider {
         config.maxTokens,
         "https://openrouter.ai/api/v1/chat/completions",
       );
+    case "noop":
+      return new NoopProvider();
     case "agent-sdk":
     default:
       return new AgentSDKProvider();

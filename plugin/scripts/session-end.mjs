@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { t as isSdkChildContext } from "./sdk-guard-DI1NUOS9.mjs";
+
 //#region src/hooks/session-end.ts
 const REST_URL = process.env["AGENTMEMORY_URL"] || "http://localhost:3111";
 const SECRET = process.env["AGENTMEMORY_SECRET"] || "";
@@ -16,6 +18,7 @@ async function main() {
 	} catch {
 		return;
 	}
+	if (isSdkChildContext(data)) return;
 	const sessionId = data.session_id || "unknown";
 	try {
 		await fetch(`${REST_URL}/agentmemory/session/end`, {

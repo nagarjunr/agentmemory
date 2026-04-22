@@ -72,9 +72,24 @@ export function registerSummarizeFunction(
         return { success: false, error: "no_observations" };
       }
 
+      if (provider.name === "noop") {
+        logger.info("Summarize skipped — no LLM provider configured", {
+          sessionId,
+        });
+        return {
+          success: false,
+          error: "no_provider",
+          reason:
+            "No LLM provider key set; Summarize is a no-op. Set ANTHROPIC_API_KEY (or GEMINI/OPENROUTER/MINIMAX) in ~/.agentmemory/.env to enable.",
+        };
+      }
+
       try {
         const prompt = buildSummaryPrompt(compressed);
         const response = await provider.summarize(SUMMARY_SYSTEM, prompt);
+        if (!response || !response.trim()) {
+          return { success: false, error: "empty_provider_response" };
+        }
         const summary = parseSummaryXml(
           response,
           sessionId,

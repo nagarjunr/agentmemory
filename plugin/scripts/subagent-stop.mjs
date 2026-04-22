@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { t as isSdkChildContext } from "./sdk-guard-DI1NUOS9.mjs";
+
 //#region src/hooks/subagent-stop.ts
 const REST_URL = process.env["AGENTMEMORY_URL"] || "http://localhost:3111";
 const SECRET = process.env["AGENTMEMORY_SECRET"] || "";
@@ -16,6 +18,7 @@ async function main() {
 	} catch {
 		return;
 	}
+	if (isSdkChildContext(data)) return;
 	const sessionId = data.session_id || "unknown";
 	const lastMsg = typeof data.last_assistant_message === "string" ? data.last_assistant_message.slice(0, 4e3) : "";
 	try {

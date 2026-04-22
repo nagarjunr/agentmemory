@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { isSdkChildContext } from "./sdk-guard.js";
+
 const REST_URL = process.env["AGENTMEMORY_URL"] || "http://localhost:3111";
 const SECRET = process.env["AGENTMEMORY_SECRET"] || "";
 
@@ -21,6 +23,8 @@ async function main() {
   } catch {
     return;
   }
+
+  if (isSdkChildContext(data)) return;
 
   const sessionId = (data.session_id as string) || "unknown";
 

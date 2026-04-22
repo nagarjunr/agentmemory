@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { isSdkChildContext } from "./sdk-guard.js";
+
 const REST_URL = process.env["AGENTMEMORY_URL"] || "http://localhost:3111";
 const SECRET = process.env["AGENTMEMORY_SECRET"] || "";
 
@@ -19,6 +21,12 @@ async function main() {
   try {
     data = JSON.parse(input);
   } catch {
+    return;
+  }
+
+  if (isSdkChildContext(data)) {
+    // Do not summarize from inside a Claude Agent SDK child session;
+    // would re-enter agent-sdk provider and loop (see sdk-guard.ts).
     return;
   }
 
