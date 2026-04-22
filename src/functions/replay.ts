@@ -12,6 +12,8 @@ import { KV, generateId } from "../state/schema.js";
 import { parseJsonlText } from "../replay/jsonl-parser.js";
 import { projectTimeline, type Timeline } from "../replay/timeline.js";
 import { safeAudit } from "./audit.js";
+import { buildSyntheticCompression } from "./compress-synthetic.js";
+import { getSearchIndex } from "./search.js";
 import { logger } from "../logger.js";
 
 const SENSITIVE_PATH_PATTERNS: RegExp[] = [
@@ -196,6 +198,13 @@ export function registerReplayFunctions(sdk: ISdk, kv: StateKV): void {
         const parsed = parseJsonlText(text, generateId("sess"));
         if (parsed.observations.length === 0) continue;
 
+        const firstPromptObs = parsed.observations.find(
+          (o) => typeof o.userPrompt === "string" && o.userPrompt.trim().length > 0,
+        );
+        const firstPrompt = firstPromptObs?.userPrompt
+          ? firstPromptObs.userPrompt.replace(/\s+/g, " ").trim().slice(0, 200)
+          : undefined;
+
         const existing = await kv.get<Session>(KV.sessions, parsed.sessionId);
         if (existing) {
           existing.observationCount =
@@ -208,6 +217,9 @@ export function registerReplayFunctions(sdk: ISdk, kv: StateKV): void {
           if (!existingTags.includes("jsonl-import")) {
             existing.tags = [...existingTags, "jsonl-import"];
           }
+          if (!existing.firstPrompt && firstPrompt) {
+            existing.firstPrompt = firstPrompt;
+          }
           await kv.set(KV.sessions, existing.id, existing);
         } else {
           const session: Session = {
@@ -219,14 +231,18 @@ export function registerReplayFunctions(sdk: ISdk, kv: StateKV): void {
             status: "completed",
             observationCount: parsed.observations.length,
             tags: ["jsonl-import"],
+            firstPrompt,
           };
           await kv.set(KV.sessions, session.id, session);
         }
 
+        const searchIndex = getSearchIndex();
         await Promise.all(
-          parsed.observations.map((obs) =>
-            kv.set(KV.observations(parsed.sessionId), obs.id, obs),
-          ),
+          parsed.observations.map(async (obs) => {
+            const synthetic = buildSyntheticCompression(obs);
+            await kv.set(KV.observations(parsed.sessionId), obs.id, synthetic);
+            searchIndex.add(synthetic);
+          }),
         );
         observationCount += parsed.observations.length;
         sessionIds.push(parsed.sessionId);

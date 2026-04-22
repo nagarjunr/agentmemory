@@ -1946,7 +1946,13 @@
       items.forEach(function(m) { types[m.type] = true; });
       var typeOptions = Object.keys(types).sort();
 
-      var html = '<div class="toolbar">';
+      var html = '<div class="card" style="margin-bottom:12px;padding:12px;background:var(--bg-subtle);">';
+      html += '<div style="font-size:13px;color:var(--ink-muted);line-height:1.5;">';
+      html += '<strong>Memories</strong> are durable facts, architecture notes, conventions, and lessons saved via <code>memory_remember</code> MCP tool or the <code>/agentmemory/remember</code> endpoint. They survive across sessions and supersede each other as v1, v2, etc. ';
+      html += '<span style="color:var(--ink-faint);">Shown: ' + items.length + ' total.</span>';
+      html += '</div></div>';
+
+      html += '<div class="toolbar">';
       html += '<input type="text" id="mem-search" placeholder="Search memories..." value="' + esc(state.memories.search) + '">';
       html += '<select id="mem-type-filter"><option value="">All types</option>';
       typeOptions.forEach(function(t) {
@@ -1955,12 +1961,14 @@
       html += '</select></div>';
 
       if (filtered.length === 0) {
-        html += '<div class="empty-state"><div class="empty-icon">&#128218;</div><p>No memories found</p></div>';
+        html += '<div class="empty-state"><div class="empty-icon">&#128218;</div><p>No memories found</p><p style="font-size:12px;color:var(--ink-faint);font-style:italic;">Save facts with the <code>memory_remember</code> MCP tool during Claude Code sessions.</p></div>';
       } else {
         html += '<table><tr><th>Title</th><th>Type</th><th>Strength</th><th>Version</th><th>Updated</th><th>Actions</th></tr>';
         filtered.forEach(function(m) {
           var badgeClass = TYPE_BADGES[m.type] || 'badge-muted';
-          var strength = Math.round((m.strength || 0) * 100);
+          var rawStrength = m.strength || 0;
+          var strength = Math.round(rawStrength <= 1 ? rawStrength * 100 : rawStrength * 10);
+          if (strength > 100) strength = 100;
           var barColor = strength > 70 ? 'var(--green)' : strength > 40 ? 'var(--yellow)' : 'var(--red)';
           html += '<tr>';
           var preview = (m.content || '').split('\n').slice(0, 2).join(' ').trim();
@@ -2409,6 +2417,10 @@
           html += '<div class="session-item' + (selected ? ' selected' : '') + '" data-action="select-session" data-session-id="' + esc(s.id) + '">';
           html += '<div class="session-top"><span class="session-project">' + esc(s.project ? s.project.split('/').pop() : 'Unknown') + '</span>';
           html += '<span class="badge ' + statusBadge + '">' + esc(s.status) + '</span></div>';
+          var preview = s.firstPrompt || s.summary || '';
+          if (preview) {
+            html += '<div class="session-preview" style="font-size:13px;color:var(--ink);margin:4px 0;line-height:1.4;">' + esc(truncate(preview, 140)) + '</div>';
+          }
           html += '<div class="session-meta">' + esc(s.id.slice(0, 12)) + ' &middot; ' + esc(formatTime(s.startedAt));
           html += ' &middot; ' + (s.observationCount || 0) + ' obs';
           if (s.model) html += ' &middot; ' + esc(s.model);
@@ -2520,7 +2532,7 @@
       el.innerHTML = '<div class="loading">Loading actions...</div>';
       var results = await Promise.all([apiGet('actions'), apiGet('frontier')]);
       state.actions.items = (results[0] && results[0].actions) || [];
-      state.actions.frontier = (results[1] && results[1].actions) || [];
+      state.actions.frontier = (results[1] && (results[1].frontier || results[1].actions)) || [];
       state.actions.loaded = true;
       renderActions();
     }
@@ -2888,6 +2900,8 @@
       pollTimer = null;
     }
 
+    var WS_CONNECT_TIMEOUT_MS = 5000;
+
     function connectWs() {
       if (wsRetries >= WS_MAX_RETRIES) {
         startPolling();
@@ -2902,8 +2916,14 @@
         ws = new WebSocket(WS_URL);
         ws.__direct = false;
       }
+      var connectTimer = setTimeout(function() {
+        if (ws.readyState === WebSocket.CONNECTING) {
+          try { ws.close(); } catch {}
+        }
+      }, WS_CONNECT_TIMEOUT_MS);
       try {
         ws.onopen = function() {
+          clearTimeout(connectTimer);
           if (state.ws !== ws) return;
           wsRetries = 0;
           stopPolling();
@@ -2935,6 +2955,7 @@
           } catch {}
         };
         ws.onclose = function() {
+          clearTimeout(connectTimer);
           if (state.ws !== ws) return;
           if (ws.__direct) {
             directFailures += 1;

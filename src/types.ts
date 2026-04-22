@@ -8,6 +8,8 @@ export interface Session {
   observationCount: number;
   model?: string;
   tags?: string[];
+  firstPrompt?: string;
+  summary?: string;
 }
 
 export interface RawObservation {
