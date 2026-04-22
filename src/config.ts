@@ -115,7 +115,7 @@ function detectProvider(env: Record<string, string>): ProviderConfig {
   return {
     provider: "agent-sdk",
     model: "claude-sonnet-4-20250514",
-    maxTokens: 4096,
+    maxTokens,
   };
 }
 
