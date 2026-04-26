@@ -14,7 +14,7 @@ import {
   isAutoCompressEnabled,
   isContextInjectionEnabled,
   detectEmbeddingProvider,
-  getEnvVar,
+  detectLlmProviderKind,
 } from "../config.js";
 
 type Response = {
@@ -154,13 +154,7 @@ export function registerApiTriggers(
     async (req: ApiRequest): Promise<Response> => {
       const authErr = checkAuth(req, secret);
       if (authErr) return authErr;
-      const providerKind =
-        getEnvVar("ANTHROPIC_API_KEY") ||
-        getEnvVar("GEMINI_API_KEY") ||
-        getEnvVar("OPENROUTER_API_KEY") ||
-        getEnvVar("MINIMAX_API_KEY")
-          ? "llm"
-          : "noop";
+      const providerKind = detectLlmProviderKind();
       const embeddingProvider = detectEmbeddingProvider() ? "embeddings" : "none";
       const flags = [
         {

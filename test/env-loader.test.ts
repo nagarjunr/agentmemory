@@ -32,8 +32,10 @@ describe("loadEnvFile", () => {
   });
 
   afterEach(() => {
-    process.env["HOME"] = ORIGINAL_HOME;
-    process.env["USERPROFILE"] = ORIGINAL_USERPROFILE;
+    if (ORIGINAL_HOME === undefined) delete process.env["HOME"];
+    else process.env["HOME"] = ORIGINAL_HOME;
+    if (ORIGINAL_USERPROFILE === undefined) delete process.env["USERPROFILE"];
+    else process.env["USERPROFILE"] = ORIGINAL_USERPROFILE;
     rmSync(sandboxHome, { recursive: true, force: true });
   });
 
@@ -67,5 +69,17 @@ describe("loadEnvFile", () => {
     writeEnv("HASHVAL=abc#def");
     const cfg = await freshConfig();
     expect(cfg.getEnvVar("HASHVAL")).toBe("abc#def");
+  });
+
+  it("strips inline comment after a quoted value and unwraps quotes", async () => {
+    writeEnv('TOKEN="abc" # trailing comment');
+    const cfg = await freshConfig();
+    expect(cfg.getEnvVar("TOKEN")).toBe("abc");
+  });
+
+  it("strips inline comment after a single-quoted value and unwraps quotes", async () => {
+    writeEnv("TOKEN='abc' # trailing comment");
+    const cfg = await freshConfig();
+    expect(cfg.getEnvVar("TOKEN")).toBe("abc");
   });
 });
