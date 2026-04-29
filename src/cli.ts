@@ -6,10 +6,10 @@ import {
   spawnSync,
   type ChildProcess,
 } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, readlinkSync, statSync } from "node:fs";
 import { join, dirname, delimiter as PATH_DELIMITER } from "node:path";
 import { fileURLToPath } from "node:url";
-import { platform } from "node:os";
+import { homedir, platform } from "node:os";
 import * as p from "@clack/prompts";
 import { generateId } from "./state/schema.js";
 
@@ -511,6 +511,55 @@ function formatChecks(checks: DoctorCheck[]): string {
     .join("\n");
 }
 
+type CCHooksCheck =
+  | { state: "loaded"; manifestPath?: string }
+  | { state: "not-loaded" }
+  | { state: "no-debug-log" }
+  | { state: "no-cc-dir" };
+
+function findLatestDebugLog(debugDir: string): string | undefined {
+  const latestLink = join(debugDir, "latest");
+  try {
+    if (existsSync(latestLink)) {
+      const target = readlinkSync(latestLink);
+      const resolved = target.startsWith("/") ? target : join(debugDir, target);
+      if (existsSync(resolved)) return resolved;
+    }
+  } catch {}
+
+  try {
+    const newest = readdirSync(debugDir)
+      .filter((f) => f.endsWith(".txt"))
+      .map((f) => ({ f, m: statSync(join(debugDir, f)).mtimeMs }))
+      .sort((a, b) => b.m - a.m)[0];
+    if (newest) return join(debugDir, newest.f);
+  } catch {}
+
+  return undefined;
+}
+
+function checkClaudeCodeHooks(): CCHooksCheck {
+  const debugDir = join(homedir(), ".claude", "debug");
+  if (!existsSync(debugDir)) return { state: "no-cc-dir" };
+
+  const logPath = findLatestDebugLog(debugDir);
+  if (!logPath) return { state: "no-debug-log" };
+
+  let content: string;
+  try {
+    content = readFileSync(logPath, "utf8");
+  } catch {
+    return { state: "no-debug-log" };
+  }
+
+  const match = content.match(
+    /Loaded hooks from standard location for plugin agentmemory:\s*(\S+)/
+  );
+  if (match) return { state: "loaded", manifestPath: match[1] };
+  if (content.includes("Loading hooks from plugin: agentmemory")) return { state: "loaded" };
+  return { state: "not-loaded" };
+}
+
 async function runDoctor() {
   p.intro("agentmemory doctor");
   const base = getBaseUrl();
@@ -570,6 +619,30 @@ async function runDoctor() {
   for (const f of (flags?.flags || []) as { label: string; enabled: boolean; enableHow: string }[]) {
     checks.push({ name: f.label, ok: f.enabled, hint: f.enabled ? undefined : f.enableHow });
   }
+
+  const cc = checkClaudeCodeHooks();
+  const ccCheck = (() => {
+    switch (cc.state) {
+      case "loaded":
+        return {
+          ok: true,
+          hint: cc.manifestPath ? `manifest: ${cc.manifestPath}` : undefined,
+        };
+      case "not-loaded":
+        return {
+          ok: false,
+          hint: "Plugin enabled but hooks not loaded by Claude Code. Try: /plugin uninstall agentmemory@agentmemory && /plugin install agentmemory@agentmemory, then restart the session. CC must be >= 2.1.x for plugin-hook auto-load.",
+        };
+      case "no-debug-log":
+        return {
+          ok: false,
+          hint: "Cannot verify — no Claude Code debug log found. Run once with `claude --debug -p \"x\"`, then re-run doctor.",
+        };
+      case "no-cc-dir":
+        return undefined;
+    }
+  })();
+  if (ccCheck) checks.push({ name: "Claude Code plugin hooks registered", ...ccCheck });
 
   checks.push({
     name: "Knowledge graph populated",
