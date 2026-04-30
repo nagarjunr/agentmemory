@@ -9,12 +9,20 @@ function buildFetchOptions(): { fetchFn: typeof fetch; agent?: unknown } {
   if (!proxyUrl) return { fetchFn: fetch };
   try {
     const tunnel = require("tunnel-agent") as {
-      httpsOverHttp: (opts: { proxy: { host: string; port: number } }) => unknown;
+      httpsOverHttp: (opts: { proxy: { host: string; port: number; proxyAuth?: string } }) => unknown;
     };
     const nodeFetch = require("node-fetch") as typeof fetch;
     const parsed = new URL(proxyUrl);
+    const proxyAuth =
+      parsed.username
+        ? `${decodeURIComponent(parsed.username)}:${decodeURIComponent(parsed.password)}`
+        : undefined;
     const agent = tunnel.httpsOverHttp({
-      proxy: { host: parsed.hostname, port: parseInt(parsed.port || "3128") },
+      proxy: {
+        host: parsed.hostname,
+        port: parseInt(parsed.port || "3128"),
+        ...(proxyAuth ? { proxyAuth } : {}),
+      },
     });
     return { fetchFn: nodeFetch, agent };
   } catch {
@@ -58,8 +66,11 @@ export class AzureOpenAIProvider implements MemoryProvider {
 
   private buildRequest(systemPrompt: string, userPrompt: string): { url: string; body: unknown; headers: Record<string, string> } {
     if (this.isFoundry) {
+      const url = this.endpoint.endsWith("/v1/messages")
+        ? this.endpoint
+        : `${this.endpoint}/v1/messages`;
       return {
-        url: `${this.endpoint}/v1/messages`,
+        url,
         headers: {
           "Content-Type": "application/json",
           "x-api-key": this.apiKey,
