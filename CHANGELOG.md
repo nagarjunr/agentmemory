@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Azure OpenAI provider.** New `AZURE_OPENAI_API_KEY` / `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_DEPLOYMENT` env vars wire up an Azure-hosted LLM for compress/summarize. Supports both standard Azure OpenAI deployments (`{resource}.openai.azure.com`) and Azure AI Foundry Anthropic deployments (`{resource}.services.ai.azure.com/anthropic`) — endpoint format auto-detected.
+- **Azure AI Foundry (Anthropic) endpoint support.** When `AZURE_OPENAI_ENDPOINT` contains `/anthropic`, the provider switches to the Anthropic Messages API format (`x-api-key` header, `anthropic-version`, top-level `system` field) instead of the Azure OpenAI chat completions format. No extra config needed — the endpoint path is the signal.
+- **Corporate proxy support for Azure provider.** Node.js 18+ built-in `fetch` ignores `HTTP_PROXY`/`HTTPS_PROXY`, causing DNS failures in corporate networks. The Azure provider now detects these env vars and tunnels through an HTTP CONNECT proxy via `tunnel-agent` + `node-fetch`, so it works out of the box on enterprise networks without custom CA hacks.
+
+### Fixed
+
+- **Viewer tab bar crush.** Tab bar no longer overflows and crushes the content area when many sessions are open.
+- **Graph canvas sizing.** Knowledge graph canvas now fills the available viewport height correctly instead of rendering as a zero-height element.
+
 ## [0.9.4] — 2026-04-29
 
 Bug-fix patch. Fixes a silent gap where the knowledge graph never auto-populated despite `GRAPH_EXTRACTION_ENABLED=true`, and adds a doctor check that detects when Claude Code fails to load plugin hooks.

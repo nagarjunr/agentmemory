@@ -789,6 +789,8 @@ agentmemory auto-detects from your environment. No API key needed if you have a 
 | MiniMax | `MINIMAX_API_KEY` | Anthropic-compatible |
 | Gemini | `GEMINI_API_KEY` | Also enables embeddings |
 | OpenRouter | `OPENROUTER_API_KEY` | Any model |
+| Azure OpenAI | `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_ENDPOINT` + `AZURE_OPENAI_DEPLOYMENT` | Standard Azure OpenAI deployments (`{resource}.openai.azure.com`) |
+| Azure AI Foundry (Anthropic) | `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_ENDPOINT` (with `/anthropic` path) + `AZURE_OPENAI_DEPLOYMENT` | Anthropic Claude deployed via Azure AI Foundry (`{resource}.services.ai.azure.com/anthropic`). Auto-detected by endpoint path. |
 | Claude subscription fallback | `AGENTMEMORY_ALLOW_AGENT_SDK=true` | Opt-in only. Spawns `@anthropic-ai/claude-agent-sdk` sessions — used to cause unbounded Stop-hook recursion (#149 follow-up) so it is no longer the default. |
 
 ### Environment Variables
@@ -802,6 +804,14 @@ Create `~/.agentmemory/.env`:
 # GEMINI_API_KEY=...
 # OPENROUTER_API_KEY=...
 # MINIMAX_API_KEY=...
+# Azure OpenAI / Azure AI Foundry
+# AZURE_OPENAI_API_KEY=...
+# AZURE_OPENAI_ENDPOINT=https://<resource>.openai.azure.com          # Standard Azure OpenAI
+# AZURE_OPENAI_ENDPOINT=https://<resource>.services.ai.azure.com/anthropic  # Azure AI Foundry (Anthropic)
+# AZURE_OPENAI_DEPLOYMENT=<deployment-name>
+# AZURE_OPENAI_API_VERSION=2024-08-01-preview                        # Optional, Azure OpenAI only
+# Note: set HTTPS_PROXY / HTTP_PROXY if running in a corporate network — the provider
+#       automatically tunnels through the proxy when these env vars are present.
 # Opt-in Claude-subscription fallback (spawns @anthropic-ai/claude-agent-sdk);
 # leave OFF unless you understand the Stop-hook recursion risk (#149 follow-up):
 # AGENTMEMORY_ALLOW_AGENT_SDK=true
