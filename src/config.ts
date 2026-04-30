@@ -304,6 +304,7 @@ export function getStandalonePersistPath(): string {
 
 const VALID_PROVIDERS = new Set([
   "anthropic",
+  "azure-openai",
   "gemini",
   "openrouter",
   "agent-sdk",
