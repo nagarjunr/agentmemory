@@ -12,8 +12,8 @@ const require = createRequire(import.meta.url);
  * credentials are extracted from the proxy URL (user:pass@host:port) and
  * forwarded as Proxy-Authorization when present.
  *
- * Proxy support is best-effort: if tunnel-agent or node-fetch cannot be loaded
- * the function silently returns the global fetch without an agent.
+ * Both packages are declared as `optionalDependencies` — if they cannot be loaded
+ * a warning is emitted and the function falls back to global fetch (proxy bypassed).
  */
 function buildFetchOptions(): { fetchFn: typeof fetch; agent?: unknown } {
   const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy ||
@@ -38,6 +38,11 @@ function buildFetchOptions(): { fetchFn: typeof fetch; agent?: unknown } {
     });
     return { fetchFn: nodeFetch, agent };
   } catch {
+    process.stderr.write(
+      "[agentmemory] azure-openai: proxy env vars detected but tunnel-agent/node-fetch " +
+        "could not be loaded — falling back to global fetch (proxy will be bypassed). " +
+        "Install optional deps to enable proxy support: npm install tunnel-agent node-fetch\n",
+    );
     return { fetchFn: fetch };
   }
 }
