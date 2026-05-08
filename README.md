@@ -6,7 +6,7 @@
   <strong>
     Your coding agent remembers everything. No more re-explaining.
     Built on <a href="https://github.com/iii-hq/iii">iii engine</a>
-  </strong>
+  </strong></br>
   Persistent memory for Claude Code, Cursor, Gemini CLI, Codex CLI, pi, OpenCode, and any MCP client.
 </p>
 
