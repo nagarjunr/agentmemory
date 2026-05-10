@@ -293,14 +293,54 @@ async function handleLocal(
   }
 }
 
+async function handleProxyGeneric(
+  toolName: string,
+  args: Record<string, unknown>,
+  handle: ProxyHandle,
+): Promise<{ content: Array<{ type: string; text: string }> }> {
+  // Forward to the server's full MCP surface so non-Claude clients can
+  // reach all 51 tools (lessons, sentinels, slots, signals, graph, …)
+  // instead of being capped at the 7 IMPLEMENTED_TOOLS set baked into
+  // this shim. The server validates arguments per tool.
+  const result = (await handle.call("/agentmemory/mcp/call", {
+    method: "POST",
+    body: JSON.stringify({ name: toolName, arguments: args }),
+  })) as { content?: Array<{ type: string; text: string }> } | null;
+  if (result && Array.isArray(result.content)) {
+    return { content: result.content };
+  }
+  return textResponse(result, true);
+}
+
 export async function handleToolCall(
   toolName: string,
   args: Record<string, unknown>,
   kvInstance: InMemoryKV = kv,
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
-  const validated = validate(toolName, args);
   const handle = await resolveHandle();
   announceMode(handle);
+
+  // Tools the local InMemoryKV fallback doesn't implement: forward straight
+  // to the server. Local validation would otherwise raise "Unknown tool"
+  // (issue #234).
+  if (!IMPLEMENTED_TOOLS.has(toolName)) {
+    if (handle.mode === "proxy") {
+      try {
+        return await handleProxyGeneric(toolName, args, handle);
+      } catch (err) {
+        process.stderr.write(
+          `[@agentmemory/mcp] proxy call failed for ${toolName}: ${err instanceof Error ? err.message : String(err)}\n`,
+        );
+        invalidateHandle();
+        throw err;
+      }
+    }
+    throw new Error(
+      `Unknown tool: ${toolName} (local fallback supports only ${[...IMPLEMENTED_TOOLS].join(", ")}; start an agentmemory server and set AGENTMEMORY_URL to use the full tool set)`,
+    );
+  }
+
+  const validated = validate(toolName, args);
   if (handle.mode === "proxy") {
     try {
       return await handleProxy(validated, handle);
@@ -329,10 +369,32 @@ const transport = createStdioTransport(async (method, params) => {
     case "notifications/initialized":
       return {};
 
-    case "tools/list":
+    case "tools/list": {
+      // When a server is reachable, expose every tool it advertises (51
+      // when AGENTMEMORY_TOOLS=all on the server). Without this, the shim
+      // capped non-Claude clients at the local 7-tool set even with the
+      // server up (issue #234).
+      const handle = await resolveHandle();
+      announceMode(handle);
+      if (handle.mode === "proxy") {
+        try {
+          const remote = (await handle.call("/agentmemory/mcp/tools", {
+            method: "GET",
+          })) as { tools?: unknown } | null;
+          if (remote && Array.isArray(remote.tools)) {
+            return { tools: remote.tools };
+          }
+        } catch (err) {
+          process.stderr.write(
+            `[@agentmemory/mcp] tools/list proxy failed: ${err instanceof Error ? err.message : String(err)}; falling back to local list\n`,
+          );
+          invalidateHandle();
+        }
+      }
       return {
         tools: getVisibleTools().filter((t) => IMPLEMENTED_TOOLS.has(t.name)),
       };
+    }
 
     case "tools/call": {
       const toolName = params.name as string;
