@@ -37,6 +37,9 @@ mcp_servers:
     command: npx
     args: ["-y", "@agentmemory/mcp"]
 
+memory:
+  provider: agentmemory
+
 Verify it's working with
 `curl http://localhost:3111/agentmemory/health` — it should return
 {"status":"healthy"}. Open the real-time viewer at
@@ -62,9 +65,12 @@ mcp_servers:
   agentmemory:
     command: npx
     args: ["-y", "@agentmemory/mcp"]
+
+memory:
+  provider: agentmemory
 ```
 
-This gives Hermes access to all 43 MCP tools. Start the server separately:
+This gives Hermes access to all 43 MCP tools and enables the agentmemory memory provider. Start the server separately:
 
 ```bash
 npx @agentmemory/agentmemory
@@ -84,7 +90,7 @@ Start the agentmemory server:
 npx @agentmemory/agentmemory
 ```
 
-The plugin auto-detects the running server and hooks into the Hermes agent loop:
+The plugin auto-detects the running server and hooks into the Hermes agent loop. Make sure `memory.provider` is set to `agentmemory` in `~/.hermes/config.yaml`:
 
 - `prefetch()` injects relevant memories before each LLM call
 - `sync_turn()` captures every conversation turn in the background
@@ -99,6 +105,8 @@ The plugin auto-detects the running server and hooks into the Hermes agent loop:
 |---|---|---|
 | `AGENTMEMORY_URL` | `http://localhost:3111` | agentmemory server URL |
 | `AGENTMEMORY_SECRET` | (none) | Auth token for protected instances |
+
+The plugin reads `~/.agentmemory/.env` (or `$XDG_CONFIG_HOME/agentmemory/.env`) at import time and populates any missing values into the process environment via `os.environ.setdefault`. Anything you set in the shell takes precedence; the file is only used to fill gaps. This means `hermes memory status` reports the plugin as available even when the agentmemory service is launched by systemd or another process manager that loads `~/.agentmemory/.env` directly without exporting it to the Hermes CLI shell (#250).
 
 ## What Hermes gets
 
